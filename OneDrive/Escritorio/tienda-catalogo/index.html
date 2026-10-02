@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catálogo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container header-top">
+    <div class="logo" id="nombre-tienda">MARCA</div>
+    <div class="header-actions">
+      <div class="gender-toggle">
+        <button class="active" data-genero="todos">Todos</button>
+        <button data-genero="hombre">Hombre</button>
+        <button data-genero="mujer">Mujer</button>
+      </div>
+      <button class="icon-btn" id="btn-abrir-carrito" aria-label="Abrir carrito">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h2l2.4 12.4a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L21 8H6"/><circle cx="10" cy="21" r="1"/><circle cx="18" cy="21" r="1"/></svg>
+        <span class="cart-count" id="cart-count">0</span>
+      </button>
+    </div>
+  </div>
+  <div class="container">
+    <nav class="category-nav">
+      <button class="active" data-categoria="todos">Todo</button>
+      <button data-categoria="ropa">Ropa</button>
+      <button data-categoria="perfumes">Perfumes</button>
+      <button data-categoria="bolsos">Bolsos</button>
+    </nav>
+  </div>
+</header>
+
+<main class="container">
+  <section class="hero">
+    <div>
+      <span class="eyebrow">Catálogo digital</span>
+      <h1>Todo en un solo lugar,<br>listo para pedir.</h1>
+      <p id="hero-eslogan">Explora la colección y añade lo que te guste al carrito.</p>
+    </div>
+    <div class="hero-tag">
+      <strong id="tag-articulos">Envíos coordinados por WhatsApp</strong>
+      Escribe directo al vendedor<br>desde cualquier producto
+    </div>
+  </section>
+
+  <div class="grid-meta">
+    <span id="grid-count">0 artículos</span>
+  </div>
+
+  <div class="product-grid" id="product-grid"></div>
+</main>
+
+<footer class="site-footer container">
+  <span>© 2026 — Catálogo digital</span>
+  <span>Escríbenos por WhatsApp para más información</span>
+</footer>
+
+<!-- WhatsApp flotante -->
+<a class="fab-wsp" id="fab-wsp" target="_blank" aria-label="Escribir por WhatsApp">
+  <svg viewBox="0 0 32 32"><path d="M16 3C9 3 3.3 8.6 3.3 15.5c0 2.5.7 4.8 1.9 6.8L3 29l6.9-2.1c1.9 1 4 1.6 6.1 1.6 7 0 12.7-5.6 12.7-12.5S23 3 16 3zm0 22.6c-1.9 0-3.7-.5-5.3-1.4l-.4-.2-4.1 1.3 1.3-4-.3-.4a10.2 10.2 0 0 1-1.6-5.4C5.6 9.9 10.2 5.4 16 5.4s10.4 4.5 10.4 10.1S21.8 25.6 16 25.6zm5.7-7.6c-.3-.2-1.8-.9-2.1-1s-.5-.2-.7.2-.8 1-1 1.2-.4.2-.7.1a8.3 8.3 0 0 1-2.4-1.5 9 9 0 0 1-1.7-2c-.2-.3 0-.5.1-.7l.5-.6c.2-.2.2-.4.3-.6a.6.6 0 0 0 0-.6c-.1-.2-.7-1.6-.9-2.2-.2-.6-.5-.5-.7-.5h-.6a1.2 1.2 0 0 0-.8.4 3.6 3.6 0 0 0-1.1 2.6c0 1.5 1.1 3 1.3 3.2.2.2 2.2 3.4 5.4 4.6a6 6 0 0 0 3.6.7c.6-.1 1.8-.7 2-1.5.3-.7.3-1.3.2-1.5s-.3-.2-.6-.4z"/></svg>
+</a>
+
+<!-- Panel de detalle de producto -->
+<div class="panel" id="panel-detalle">
+  <div class="panel-head">
+    <span class="eyebrow">Detalle del producto</span>
+    <button class="panel-close">&times;</button>
+  </div>
+  <div class="panel-body" id="panel-detalle-body"></div>
+</div>
+
+<!-- Panel de carrito -->
+<div class="panel" id="panel-carrito">
+  <div class="panel-head">
+    <span class="eyebrow">Tu carrito</span>
+    <button class="panel-close">&times;</button>
+  </div>
+  <div class="panel-body" id="cart-body"></div>
+  <div class="cart-summary" id="cart-summary">
+    <div class="cart-total-row"><span>Total</span><strong id="cart-total">$0</strong></div>
+    <button class="btn btn-wsp btn-full" id="btn-finalizar">Finalizar pedido por WhatsApp</button>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<!-- Datos de productos -->
+<script src="data/ropa.js"></script>
+<script src="data/perfumes.js"></script>
+<script src="data/bolsos.js"></script>
+
+<!-- Lógica -->
+<script src="js/config.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/catalog.js"></script>
+<script src="js/cart.js"></script>
+<script>
+  document.getElementById("fab-wsp").href =
+    `https://wa.me/${CONFIG.whatsappNumero}?text=${encodeURIComponent("Hola, quiero más información sobre sus productos.")}`;
+</script>
+</body>
+</html>
