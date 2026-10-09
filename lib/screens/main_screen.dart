@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../theme/colores.dart';
 import '../widgets/barra_navegacion.dart';
-import '../widgets/pantalla_vacia.dart';
 import 'explorar_screen.dart';
 import 'inicio_screen.dart';
+import 'mis_eventos_screen.dart';
 import 'perfil_screen.dart';
 
 /// Contenedor de las pantallas principales + barra de navegación inferior.
@@ -25,6 +25,17 @@ class _MainScreenState extends State<MainScreen> {
   int _versionInicio = 0;
   int _versionPerfil = 0;
 
+  // Cada vez que sube este número, Explorar abre el modal de filtros.
+  int _senalFiltros = 0;
+
+  /// Inicio > Categorías > "Ver todo": va a Explorar y abre los filtros.
+  void _verCategorias() {
+    setState(() {
+      _senalFiltros++;
+      _indice = 1;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -42,9 +53,13 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final paginas = <Widget>[
-      InicioScreen(key: ValueKey('inicio$_versionInicio')),
-      const ExplorarScreen(),
-      const PantallaVacia(titulo: 'Mis eventos'),
+      InicioScreen(
+        key: ValueKey('inicio$_versionInicio'),
+        onVerCategorias: _verCategorias,
+        onVerEventos: () => _seleccionar(1), // Eventos Top > "Ver todo"
+      ),
+      ExplorarScreen(senalAbrirFiltros: _senalFiltros),
+      const MisEventosScreen(),
       PerfilScreen(key: ValueKey('perfil$_versionPerfil')),
     ];
 
@@ -62,12 +77,8 @@ class _MainScreenState extends State<MainScreen> {
               child: BarraNavegacion(
                 indiceActual: _indice,
                 alSeleccionar: _seleccionar,
-                alPresionarMas: () {
-                  // TODO: abrir la pantalla "Crear evento" cuando exista
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Crear evento: pantalla pendiente')),
-                  );
-                },
+                alPresionarMas: () =>
+                    Navigator.pushNamed(context, '/crear-evento'),
               ),
             ),
           ),

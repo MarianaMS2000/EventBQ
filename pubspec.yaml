@@ -1,37 +1,36 @@
 name: eventbq
-description: EventBQ - Tu espacio para encontrarnos, hablar y celebrar juntos.
+description: A new Flutter project.
 publish_to: 'none'
+
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: ^3.0.0
 
 dependencies:
   flutter:
     sdk: flutter
   shared_preferences: ^2.2.3
+  image_picker: ^1.0.7
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_lints: ^4.0.0
 
 flutter:
   uses-material-design: true
-
   assets:
-    - assets/images/
-    - assets/icons/
-
-  # Tipografía de las capturas (parece "Lexend"). Descarga los .ttf, ponlos en
-  # assets/fonts/ y descomenta este bloque (ver README).
+   - assets/images/
+   - assets/icons/
   # fonts:
-  #   - family: Lexend
+  #   - family: Schyler
   #     fonts:
-  #       - asset: assets/fonts/Lexend-Regular.ttf
-  #       - asset: assets/fonts/Lexend-Medium.ttf
-  #         weight: 500
-  #       - asset: assets/fonts/Lexend-SemiBold.ttf
-  #         weight: 600
-  #       - asset: assets/fonts/Lexend-Bold.ttf
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
   #         weight: 700

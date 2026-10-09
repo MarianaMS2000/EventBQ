@@ -10,7 +10,11 @@ import '../widgets/filtros_sheet.dart';
 import '../widgets/tarjeta_evento_horizontal.dart';
 
 class ExplorarScreen extends StatefulWidget {
-  const ExplorarScreen({super.key});
+  /// Si este número cambia, la pantalla abre el modal de filtros
+  /// (lo usa Inicio > Categorías > "Ver todo").
+  final int senalAbrirFiltros;
+
+  const ExplorarScreen({super.key, this.senalAbrirFiltros = 0});
 
   @override
   State<ExplorarScreen> createState() => _ExplorarScreenState();
@@ -21,6 +25,16 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
   final _eventoRepo = EventoRepository();
   String _texto = '';
   FiltrosEvento _filtros = FiltrosEvento();
+
+  @override
+  void didUpdateWidget(covariant ExplorarScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.senalAbrirFiltros != oldWidget.senalAbrirFiltros) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _abrirFiltros();
+      });
+    }
+  }
 
   Future<void> _abrirFiltros() async {
     final resultado = await mostrarFiltros(context, _filtros);

@@ -10,11 +10,15 @@ class PantallaConBarra extends StatelessWidget {
   final int indiceActual;
   final Color colorFondo;
 
+  /// Qué hace el botón +. Por defecto abre "Crear evento".
+  final VoidCallback? alPresionarMas;
+
   const PantallaConBarra({
     super.key,
     required this.child,
     this.indiceActual = 1,
     this.colorFondo = Colores.fondo,
+    this.alPresionarMas,
   });
 
   @override
@@ -24,23 +28,22 @@ class PantallaConBarra extends StatelessWidget {
       body: Stack(
         children: [
           Positioned.fill(child: child),
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: 8,
-            child: SafeArea(
-              top: false,
-              child: BarraNavegacion(
-                indiceActual: indiceActual,
-                alSeleccionar: (i) => irAPestana(context, i),
-                alPresionarMas: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Crear evento: pantalla pendiente')),
-                  );
-                },
+          // La barra se oculta mientras el teclado está abierto.
+          if (MediaQuery.of(context).viewInsets.bottom == 0)
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 8,
+              child: SafeArea(
+                top: false,
+                child: BarraNavegacion(
+                  indiceActual: indiceActual,
+                  alSeleccionar: (i) => irAPestana(context, i),
+                  alPresionarMas: alPresionarMas ??
+                      () => Navigator.pushNamed(context, '/crear-evento'),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

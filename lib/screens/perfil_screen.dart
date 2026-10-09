@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/evento.dart';
 import '../navegacion.dart';
 import '../repositories/evento_repository.dart';
 import '../repositories/usuario_repository.dart';
 import '../theme/colores.dart';
+import '../widgets/aviso_exito.dart';
 import '../widgets/imagen_asset.dart';
 import '../widgets/tarjeta_evento_horizontal.dart';
 
 /// Perfil del usuario. Tiene dos modos:
 ///  - lectura (lápiz arriba a la derecha de la tarjeta)
-///  - edición (ícono de guardar): Email, Teléfono y Rol se pueden cambiar
-///    y se guardan en SharedPreferences.
+///  - edición (ícono de guardar): Email, Teléfono y Rol se pueden editar,
+///    pero por ahora (solo frontend) NO se guarda nada: al guardar solo
+///    sale un aviso verde de "cambio exitoso".
+///
+/// La cámara de la foto abre la galería, pero tampoco guarda ni muestra la
+/// foto elegida (solo el aviso verde).
 class PerfilScreen extends StatefulWidget {
   const PerfilScreen({super.key});
 
@@ -50,12 +56,24 @@ class _PerfilScreenState extends State<PerfilScreen> {
       );
       return;
     }
-    _usuarioRepo.actualizarPerfil(
-      correo: _correo.text,
-      telefono: _telefono.text,
-      rol: _rol.text,
-    );
+    // Solo frontend: NO se guarda nada. Cuando haya backend, aquí se llama
+    // a la API (o a _usuarioRepo.actualizarPerfil).
     setState(() => _editando = false);
+    mostrarAvisoExito(context, '¡Datos actualizados con éxito!');
+  }
+
+  /// Abre la galería. La foto elegida no se guarda ni se muestra (demo).
+  Future<void> _elegirFoto() async {
+    try {
+      final foto = await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (foto == null || !mounted) return; // canceló la galería
+      mostrarAvisoExito(context, '¡Foto de perfil actualizada!');
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo abrir la galería')),
+      );
+    }
   }
 
   @override
@@ -97,7 +115,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
                     const SizedBox(height: 14),
                     Row(
                       children: [
-                        _estadistica('${u.eventosAsistidos}', 'Eventos asistidos'),
+                        _estadistica(
+                            '${u.eventosAsistidos}', 'Eventos asistidos'),
                         _estadistica('${u.eventosCreados}', 'Eventos creados'),
                         _estadistica('${u.rating}', 'Rating'),
                       ],
@@ -120,14 +139,59 @@ class _PerfilScreenState extends State<PerfilScreen> {
               children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _tarjetaInformacion(u.correo, u.telefono, u.rol, u.miembroDesde),
+                  child: Column(
+                    children: [
+                      _tarjetaInformacion(
+                          u.correo, u.telefono, u.rol, u.miembroDesde),
+                      const SizedBox(height: 16),
+                      // Botón de Cerrar Sesión (Ubicado debajo de Información Personal)
+                      OutlinedButton(
+                        onPressed: () {
+                          _usuarioRepo.cerrarSesion();
+                          Navigator.pushNamedAndRemoveUntil(
+                              context, '/bienvenida', (r) => false);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          minimumSize: const Size(double.infinity, 48),
+                          side: const BorderSide(
+                            color: Color(0xFF8B2626),
+                            width: 1.5,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.logout_rounded,
+                              color: Color(0xFF8B2626),
+                              size: 22,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Cerrar sesión',
+                              style: TextStyle(
+                                color: Color(0xFF8B2626),
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 22),
                 // Encabezado rosado "Eventos guardados"
                 Container(
                   width: double.infinity,
                   color: const Color(0xFFFA8FDB),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
                   child: const Text(
                     'Eventos guardados',
                     style: TextStyle(
@@ -147,20 +211,6 @@ class _PerfilScreenState extends State<PerfilScreen> {
                     ),
                   ),
                 ...guardados.map(_tarjetaGuardado),
-                const SizedBox(height: 10),
-                // No está en el diseño: se dejó para poder volver al login mientras se prueba.
-                Center(
-                  child: TextButton(
-                    onPressed: () {
-                      _usuarioRepo.cerrarSesion();
-                      Navigator.pushNamedAndRemoveUntil(context, '/bienvenida', (r) => false);
-                    },
-                    child: const Text(
-                      'Cerrar sesión',
-                      style: TextStyle(color: Colores.grisTexto),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -186,16 +236,14 @@ class _PerfilScreenState extends State<PerfilScreen> {
             bottom: 2,
             right: 2,
             child: GestureDetector(
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Cambiar foto: pendiente')),
-                );
-              },
+              onTap: _elegirFoto,
               child: Container(
                 width: 30,
                 height: 30,
-                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                child: const Icon(Icons.photo_camera_outlined, size: 18, color: Colores.azulOscuro),
+                decoration: const BoxDecoration(
+                    color: Colors.white, shape: BoxShape.circle),
+                child: const Icon(Icons.photo_camera_outlined,
+                    size: 18, color: Colores.azulOscuro),
               ),
             ),
           ),
@@ -230,7 +278,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
     );
   }
 
-  Widget _tarjetaInformacion(String correo, String telefono, String rol, String miembro) {
+  Widget _tarjetaInformacion(
+      String correo, String telefono, String rol, String miembro) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -274,14 +323,16 @@ class _PerfilScreenState extends State<PerfilScreen> {
   }
 
   /// En lectura muestra texto; en edición muestra una caja de texto.
-  Widget _campo(String etiqueta, String valor, TextEditingController c, TextInputType tipo) {
+  Widget _campo(String etiqueta, String valor, TextEditingController c,
+      TextInputType tipo) {
     if (!_editando) return _dato(etiqueta, valor);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(etiqueta, style: const TextStyle(fontSize: 11, color: Colores.grisTexto)),
+          Text(etiqueta,
+              style: const TextStyle(fontSize: 11, color: Colores.grisTexto)),
           const SizedBox(height: 2),
           TextField(
             controller: c,
@@ -295,14 +346,17 @@ class _PerfilScreenState extends State<PerfilScreen> {
               isDense: true,
               filled: true,
               fillColor: const Color(0xFFE9EAEC),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Colores.azulOscuro, width: 0.8),
+                borderSide:
+                    const BorderSide(color: Colores.azulOscuro, width: 0.8),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Colores.azulOscuro, width: 0.8),
+                borderSide:
+                    const BorderSide(color: Colores.azulOscuro, width: 0.8),
               ),
             ),
           ),
@@ -317,7 +371,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(etiqueta, style: const TextStyle(fontSize: 11, color: Colores.grisTexto)),
+          Text(etiqueta,
+              style: const TextStyle(fontSize: 11, color: Colores.grisTexto)),
           Text(
             valor,
             style: const TextStyle(
@@ -341,7 +396,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
           await _eventoRepo.alternarFavorito(e.id);
           setState(() {});
         },
-        onVer: () => Navigator.pushNamed(context, '/detalle-evento', arguments: e),
+        onVer: () =>
+            Navigator.pushNamed(context, '/detalle-evento', arguments: e),
       ),
     );
   }

@@ -22,10 +22,14 @@ class SeccionTitulo extends StatelessWidget {
           ),
         ),
         GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: onVerTodo,
-          child: const Text(
-            'Ver todo >',
-            style: TextStyle(fontSize: 12, color: Colors.black87),
+          child: const Padding(
+            padding: EdgeInsets.only(left: 12, top: 6, bottom: 6),
+            child: Text(
+              'Ver todo >',
+              style: TextStyle(fontSize: 12, color: Colors.black87),
+            ),
           ),
         ),
       ],

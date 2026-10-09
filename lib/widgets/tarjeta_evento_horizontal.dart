@@ -17,6 +17,8 @@ class TarjetaEventoHorizontal extends StatelessWidget {
   final bool mostrarCorazon;
   final VoidCallback? onCorazon;
   final String? etiquetaFecha; // si se pasa (ej. "HOY") reemplaza al día/mes
+  final Color colorBotonVer; // color del botón "Ver" (por defecto celeste)
+  final String? estadoMostrado; // si se pasa, reemplaza a evento.estado en el badge
 
   const TarjetaEventoHorizontal({
     super.key,
@@ -26,6 +28,8 @@ class TarjetaEventoHorizontal extends StatelessWidget {
     this.mostrarCorazon = false,
     this.onCorazon,
     this.etiquetaFecha,
+    this.colorBotonVer = Colores.celesteClaro,
+    this.estadoMostrado,
   });
 
   @override
@@ -39,7 +43,8 @@ class TarjetaEventoHorizontal extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colores.azulOscuro, width: 0.8),
           boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+            BoxShadow(
+                color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
           ],
         ),
         child: Row(
@@ -61,7 +66,8 @@ class TarjetaEventoHorizontal extends StatelessWidget {
                     left: 6,
                     child: etiquetaFecha != null
                         ? InsigniaFecha(principal: etiquetaFecha!, ancho: 36)
-                        : InsigniaFecha(principal: evento.dia, secundario: evento.mes),
+                        : InsigniaFecha(
+                            principal: evento.dia, secundario: evento.mes),
                   ),
                 ],
               ),
@@ -76,7 +82,8 @@ class TarjetaEventoHorizontal extends StatelessWidget {
                   children: [
                     Text(
                       evento.titulo,
-                      maxLines: 2,
+                      maxLines:
+                          1, // Cambiado de 2 a 1 para asegurar espacio vertical
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 13,
@@ -84,18 +91,21 @@ class TarjetaEventoHorizontal extends StatelessWidget {
                         color: Colors.black,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.location_on_outlined, size: 15, color: Colores.azulMedio),
+                        const Icon(Icons.location_on_outlined,
+                            size: 15, color: Colores.azulMedio),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             evento.lugar,
-                            maxLines: 2,
+                            maxLines:
+                                2, // Mantiene hasta 2 líneas para la ubicación
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11, color: Colores.azulMedio),
+                            style: const TextStyle(
+                                fontSize: 11, color: Colores.azulMedio),
                           ),
                         ),
                       ],
@@ -127,37 +137,39 @@ class TarjetaEventoHorizontal extends StatelessWidget {
 
   Widget _accionDerecha() {
     if (mostrarEstado) {
-      return BadgeEstado(estado: evento.estado);
+      return BadgeEstado(estado: estadoMostrado ?? evento.estado);
     }
     if (mostrarCorazon) {
       return GestureDetector(
         onTap: onCorazon,
         child: Container(
           width: 70,
-          height: 32,
+          height:
+              28, // Ajustado ligeramente de 32 a 28 para no forzar la fila inferior
           decoration: BoxDecoration(
             color: const Color(0xFFF2D5EA),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(Icons.favorite, color: Color(0xFFE84393), size: 22),
+          child: const Icon(Icons.favorite, color: Color(0xFFE84393), size: 20),
         ),
       );
     }
     return SizedBox(
-      width: 78,
-      height: 32,
+      width: 70, // Reducido ligeramente de 78 a 70
+      height: 28, // Reducido ligeramente de 32 a 28
       child: ElevatedButton(
         onPressed: onVer,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colores.celesteClaro,
+          backgroundColor: colorBotonVer,
           foregroundColor: Colores.azulOscuro,
           elevation: 0,
           padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
         child: const Text(
           'Ver',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
       ),
     );

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/colores.dart';
 
-/// Pastilla "Activo" (verde) o "Finalizado" (gris).
+/// Pastilla de estado: "Activo" (verde), "Cancelado" (rojo) o "Finalizado" (gris).
 class BadgeEstado extends StatelessWidget {
   final String estado;
 
@@ -10,20 +10,25 @@ class BadgeEstado extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final activo = estado == 'Activo';
+    final cancelado = estado == 'Cancelado';
     return Container(
       width: 78,
       height: 30,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: activo ? Colores.verdeActivo : Colores.grisEstado,
+        color: activo
+            ? Colores.verdeActivo
+            : cancelado
+                ? const Color(0xFFEF5350)
+                : Colores.grisEstado,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
         estado,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: Colores.azulOscuro,
+          color: cancelado ? Colors.white : Colores.azulOscuro,
         ),
       ),
     );

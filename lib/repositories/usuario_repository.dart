@@ -5,32 +5,13 @@ import '../preferences/preferencias_usuario.dart';
 /// Sin backend: el login acepta cualquier usuario/contraseña NO vacíos.
 /// Cuando exista backend, aquí se cambia la validación por una llamada a la API.
 class UsuarioRepository {
-  /// Lo guardado en SharedPreferences tiene prioridad; lo que falte sale de los datos simulados.
-  Usuario obtenerUsuarioActual() {
-    final base = datosUsuarioPorDefecto;
-    return Usuario(
-      nombre: _o(PreferenciasUsuario.nombre, base.nombre),
-      usuario: _o(PreferenciasUsuario.usuario, base.usuario),
-      correo: _o(PreferenciasUsuario.correo, base.correo),
-      foto: base.foto,
-      telefono: _o(PreferenciasUsuario.telefono, base.telefono),
-      rol: _o(PreferenciasUsuario.rol, base.rol),
-      miembroDesde: base.miembroDesde,
-      eventosAsistidos: base.eventosAsistidos,
-      eventosCreados: base.eventosCreados,
-      rating: base.rating,
-    );
-  }
-
-  String _o(String guardado, String porDefecto) {
-    return guardado.isEmpty ? porDefecto : guardado;
-  }
+  /// Solo frontend: todos los datos salen de los datos simulados (Connor Storrie).
+  /// Nada de lo que se escriba (registro, login o editar perfil) se guarda ni se
+  /// refleja. Cuando haya backend, aquí se pedirá el usuario a la API.
+  Usuario obtenerUsuarioActual() => datosUsuarioPorDefecto;
 
   bool iniciarSesion(String usuarioOCorreo, String clave) {
     if (usuarioOCorreo.trim().isEmpty || clave.isEmpty) return false;
-    if (PreferenciasUsuario.usuario.isEmpty) {
-      PreferenciasUsuario.usuario = usuarioOCorreo.trim();
-    }
     PreferenciasUsuario.sesionIniciada = true;
     return true;
   }
@@ -41,10 +22,17 @@ class UsuarioRepository {
     required String correo,
     required String clave,
   }) {
-    PreferenciasUsuario.nombre = nombre.trim();
-    PreferenciasUsuario.usuario = usuario.trim();
-    PreferenciasUsuario.correo = correo.trim();
+    // Solo frontend: no se guardan los datos escritos. El perfil vuelve a los
+    // datos por defecto (Connor Storrie). Con backend, aquí se crearía la cuenta.
+    PreferenciasUsuario.nombre = '';
+    PreferenciasUsuario.usuario = '';
+    PreferenciasUsuario.correo = '';
+    PreferenciasUsuario.telefono = '';
+    PreferenciasUsuario.rol = '';
     PreferenciasUsuario.sesionIniciada = true;
+    // Cuenta nueva: debe ver el tutorial (onboarding) la primera vez,
+    // aunque en este dispositivo ya lo haya visto otra persona/cuenta.
+    PreferenciasUsuario.onboardingCompletado = false;
   }
 
   /// Guarda los campos editables del perfil.

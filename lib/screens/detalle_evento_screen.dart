@@ -34,6 +34,7 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
   Future<void> _inscribirse(Evento evento) async {
     final confirmado = await mostrarDialogoConfirmarAsistencia(context, evento);
     if (confirmado && mounted) {
+      _eventoRepo.agregarEntrada(evento); // aparece en Mis Entradas Compradas
       Navigator.pushReplacementNamed(context, '/registro-exitoso', arguments: evento);
     }
   }
@@ -62,7 +63,12 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
                 width: double.infinity,
                 child: Stack(
                   children: [
-                    Positioned.fill(child: ImagenAsset(ruta: e.imagen)),
+                    Positioned.fill(
+                      child: ImagenAsset(
+                        ruta: e.imagenParaDetalle,
+                        rutaRespaldo: e.imagen, // si falta la 2.ª, usa la portada
+                      ),
+                    ),
                     Positioned(
                       top: 12,
                       left: 12,
@@ -198,13 +204,36 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: Colores.azulBrillante, width: 2),
                       ),
+                      // Espacio reservado para el mapa / ubicación del evento
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        // Reemplaza por assets/images/mapa.png cuando lo tengas
-                        child: const ImagenAsset(
-                          ruta: 'assets/images/mapa.png',
-                          colorPlaceholder: Color(0xFFCFE0EA),
-                          iconoPlaceholder: Icons.map_outlined,
+                        child: Container(
+                          color: const Color(0xFFE3EEF5),
+                          alignment: Alignment.center,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.location_on,
+                                  color: Colores.azulBrillante, size: 40),
+                              const SizedBox(height: 6),
+                              const Text(
+                                'Aquí va la ubicación del evento',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colores.azulOscuro,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                e.lugar,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colores.grisTexto,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

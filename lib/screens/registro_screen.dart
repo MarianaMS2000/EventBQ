@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../preferences/preferencias_usuario.dart';
 import '../repositories/usuario_repository.dart';
 import '../theme/colores.dart';
 import '../widgets/boton_principal.dart';
@@ -54,8 +53,8 @@ class _RegistroScreenState extends State<RegistroScreen> {
       correo: _email.text,
       clave: _clave.text,
     );
-    final ruta = PreferenciasUsuario.onboardingCompletado ? '/home' : '/onboarding';
-    Navigator.pushNamedAndRemoveUntil(context, ruta, (route) => false);
+    // Cuenta nueva: siempre empieza con los 3 onboarding.
+    Navigator.pushNamedAndRemoveUntil(context, '/onboarding', (route) => false);
   }
 
   @override

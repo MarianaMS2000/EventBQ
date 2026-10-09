@@ -10,7 +10,13 @@ import '../widgets/seccion_titulo.dart';
 import '../widgets/tarjeta_evento_vertical.dart';
 
 class InicioScreen extends StatefulWidget {
-  const InicioScreen({super.key});
+  /// "Ver todo" de Categorías: abre Explorar con el modal de filtros.
+  final VoidCallback? onVerCategorias;
+
+  /// "Ver todo" de Eventos Top: abre Explorar.
+  final VoidCallback? onVerEventos;
+
+  const InicioScreen({super.key, this.onVerCategorias, this.onVerEventos});
 
   @override
   State<InicioScreen> createState() => _InicioScreenState();
@@ -37,7 +43,10 @@ class _InicioScreenState extends State<InicioScreen> {
             const SizedBox(height: 16),
             const BarraBusqueda(hint: 'Un evento de salchipapa?'),
             const SizedBox(height: 20),
-            const SeccionTitulo(titulo: 'Categorías'),
+            SeccionTitulo(
+              titulo: 'Categorías',
+              onVerTodo: widget.onVerCategorias,
+            ),
             const SizedBox(height: 12),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -51,7 +60,10 @@ class _InicioScreenState extends State<InicioScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            const SeccionTitulo(titulo: 'Eventos Top'),
+            SeccionTitulo(
+              titulo: 'Eventos Top',
+              onVerTodo: widget.onVerEventos,
+            ),
             const SizedBox(height: 12),
             ...eventos.map(
               (e) => Padding(

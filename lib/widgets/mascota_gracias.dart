@@ -3,7 +3,7 @@ import '../theme/colores.dart';
 import 'logo_flor.dart';
 
 /// Flor blanca con carita sosteniendo estrellas (pantalla de agradecimiento).
-/// Es un dibujo hecho con widgets; si tienes la ilustración real, cámbialo por Image.asset.
+/// Usa assets/images/mascota_gracias.png; si no existe, la dibuja con widgets.
 class MascotaGracias extends StatelessWidget {
   final double tamano;
 
@@ -11,13 +11,25 @@ class MascotaGracias extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return SizedBox(
+      width: tamano,
+      height: tamano,
+      child: Image.asset(
+        'assets/images/mascota_gracias.png',
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) => _dibujo(),
+      ),
+    );
+  }
+
+  Widget _dibujo() {
     const morado = Color(0xFF6B4FD8);
     return SizedBox(
       width: tamano,
       height: tamano,
       child: Stack(
         children: [
-          LogoFlor(tamano: tamano),
+          LogoFlor(tamano: tamano, usarImagen: false),
           // Ojos
           Positioned(top: tamano * 0.30, left: tamano * 0.39, child: _ojo()),
           Positioned(top: tamano * 0.30, left: tamano * 0.58, child: _ojo()),

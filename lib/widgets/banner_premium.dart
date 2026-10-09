@@ -1,25 +1,53 @@
 import 'package:flutter/material.dart';
 import 'logo_flor.dart';
 
-/// Banner "EventBQ Premium" (se repite en Inicio y Explorar).
+/// Banner "EventBQ Premium" (se repite en Inicio, Explorar y Detalle).
+/// Al tocar el recuadro (o el botón "Explorar pases") se abre la pantalla
+/// de planes. Si se pasa [onExplorar], se usa ese callback en su lugar.
 class BannerPremium extends StatelessWidget {
   final VoidCallback? onExplorar;
 
   const BannerPremium({super.key, this.onExplorar});
 
+  void _abrirPlanes(BuildContext context) {
+    if (onExplorar != null) {
+      onExplorar!();
+    } else {
+      Navigator.pushNamed(context, '/planes');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: const LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [Color(0xFF14105E), Color(0xFF5B2A55)],
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: Ink(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          gradient: const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [Color(0xFF14105E), Color(0xFF5B2A55)],
+          ),
+        ),
+        child: InkWell(
+          onTap: () => _abrirPlanes(context),
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: _contenido(context),
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _contenido(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -52,7 +80,7 @@ class BannerPremium extends StatelessWidget {
               ),
             ),
             child: TextButton(
-              onPressed: onExplorar,
+              onPressed: () => _abrirPlanes(context),
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 18),
               ),

@@ -110,6 +110,7 @@ final List<Evento> datosEventosExplorar = [
     lugar: 'Museo del Caribe',
     precio: '\$ Gratis',
     imagen: 'assets/images/evento_exposicion.jpg',
+    imagenDetalle: 'assets/images/evento_exposicion_detalle.jpg',
     fechaLarga: '10 de Diciembre 2026',
     horario: '10:00 AM - 2:00 PM',
     cuposDisponibles: 32,
@@ -252,6 +253,40 @@ final List<Evento> datosEventosOrganizador = [
   ),
 ];
 
+// Entradas que compró el usuario (Mis eventos > Mis Entradas Compradas).
+// Es una lista en memoria: al anular una reserva se quita de aquí.
+final List<Evento> datosEntradasCompradas = [
+  datosEventosExplorar[2], // Exposición: Retrospectiva Acuarelas
+];
+
+// Eventos creados por el usuario (pantalla Mis eventos > Panel de Organizador)
+final List<Evento> datosEventosCreados = [
+  Evento(
+    id: 'c1',
+    titulo: 'Sushi & Nikkei para Principiantes',
+    categoria: 'Gastronomía',
+    fechaCompleta: 'Nov 02 • 06:00 PM • 2026',
+    dia: '2',
+    mes: 'Nov',
+    lugar: 'Barrio El Prado',
+    precio: '\$ 60.000',
+    imagen: 'assets/images/evento_sushi.jpg',
+    estado: 'Activo',
+  ),
+  Evento(
+    id: 'c2',
+    titulo: 'Torneo Relámpago de Vóley Playa',
+    categoria: 'Deportes',
+    fechaCompleta: 'Nov 20 • 09:00 AM • 2026',
+    dia: '20',
+    mes: 'Nov',
+    lugar: 'Caimán del Río',
+    precio: '\$ Gratis',
+    imagen: 'assets/images/evento_voley.jpg',
+    estado: 'Finalizado',
+  ),
+];
+
 // Opciones del modal de filtros
 final List<String> datosCategoriasFiltro = [
   'Salud',
@@ -262,6 +297,21 @@ final List<String> datosCategoriasFiltro = [
   'Cultura',
   'Empresarial',
   'Arte',
+];
+
+// Publicaciones del usuario en el periodo (para el límite de eventos).
+// Vive en memoria: se reinicia al cerrar la app. Con backend esto lo
+// controla el servidor.
+const int limiteEventosPeriodo = 2; // eventos permitidos en 6 meses
+final List<DateTime> datosPublicaciones = [];
+
+// ¿Compró el plan Organizador Pro? (publicación ilimitada). En memoria.
+bool datosPlanOrganizadorActivo = false;
+
+// Categorías al crear un evento (las del filtro + Videojuegos)
+final List<String> datosCategoriasEvento = [
+  ...datosCategoriasFiltro,
+  'Videojuegos',
 ];
 
 final List<String> datosOpcionesFecha = [

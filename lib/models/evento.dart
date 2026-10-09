@@ -9,7 +9,11 @@ class Evento {
   String mes; // "Dic"
   String lugar;
   String precio; // "$ 25.00", "$ Gratis"
-  String imagen; // ruta del asset
+  String imagen; // portada: la que se ve por fuera (tarjetas, tickets...)
+
+  // Segunda imagen (opcional): la que se ve por dentro, en el detalle.
+  // Si el organizador solo sube una, el detalle usa la misma portada.
+  String? imagenDetalle;
 
   // ---- Datos extra (opcionales) que usa la pantalla de detalle ----
   bool esHoy; // (dato simulado) el evento es hoy
@@ -32,6 +36,7 @@ class Evento {
     required this.lugar,
     required this.precio,
     required this.imagen,
+    this.imagenDetalle,
     this.esHoy = false,
     this.estado = 'Activo',
     this.descripcion = '',
@@ -46,6 +51,7 @@ class Evento {
   List<String> get _partes => fechaCompleta.split(' • ');
   String get hora => _partes.length > 1 ? _partes[1] : '';
   String get anio => _partes.length > 2 ? _partes[2] : '';
+  String get imagenParaDetalle => imagenDetalle ?? imagen;
   String get fechaCorta => '$dia de $mes $anio';
   String get fechaParaDetalle => fechaLarga.isNotEmpty ? fechaLarga : fechaCorta;
   String get horarioParaDetalle => horario.isNotEmpty ? horario : hora;

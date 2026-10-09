@@ -18,11 +18,53 @@ class EventoRepository {
     return datosEventosOrganizador;
   }
 
+  /// Eventos que creó el usuario (Mis eventos > Mis Eventos Creados).
+  List<Evento> obtenerEventosCreados() {
+    return datosEventosCreados;
+  }
+
+  /// Entradas que compró el usuario (Mis Entradas Compradas).
+  List<Evento> obtenerEntradasCompradas() {
+    return datosEntradasCompradas;
+  }
+
+  /// Guarda una entrada nueva (al inscribirse a un evento). No repite.
+  void agregarEntrada(Evento evento) {
+    if (datosEntradasCompradas.any((e) => e.id == evento.id)) return;
+    datosEntradasCompradas.add(evento);
+  }
+
+  // ----- Límite de eventos publicados (plan gratuito) -----
+
+  int get eventosPublicados => datosPublicaciones.length;
+
+  /// Con el plan Organizador Pro no hay límite (eventos ilimitados).
+  bool get planOrganizadorActivo => datosPlanOrganizadorActivo;
+
+  bool get limiteAlcanzado =>
+      !planOrganizadorActivo && eventosPublicados >= limiteEventosPeriodo;
+
+  /// Se llama al terminar de pagar el plan Organizador Pro.
+  void activarPlanOrganizador() => datosPlanOrganizadorActivo = true;
+
+  /// Vuelve el contador a 0 (simulación: ver ObservadorCreacionEventos).
+  void reiniciarPublicaciones() => datosPublicaciones.clear();
+
+  /// Cuenta un evento nuevo publicado.
+  void registrarPublicacion() => datosPublicaciones.add(DateTime.now());
+
+  /// Fecha desde la que podrá publicar otro (6 meses tras la primera).
+  DateTime get fechaProximoEvento {
+    final primera = datosPublicaciones.first;
+    return DateTime(primera.year, primera.month + 6, primera.day);
+  }
+
   Evento? obtenerEventoPorId(String id) {
     final todos = [
       ...datosEventosTop,
       ...datosEventosExplorar,
       ...datosEventosOrganizador,
+      ...datosEventosCreados,
     ];
     for (final e in todos) {
       if (e.id == id) return e;
