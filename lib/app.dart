@@ -36,7 +36,6 @@ class EventBQApp extends StatelessWidget {
         // fontFamily: 'Lexend', // <- descomentar cuando agregues la fuente
       ),
       initialRoute: '/',
-      navigatorObservers: [ObservadorCreacionEventos()],
       // Para agregar una pantalla nueva: crea el archivo en screens/ y
       // añade una línea aquí.
       routes: {

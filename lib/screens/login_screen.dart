@@ -27,10 +27,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _ingresar() {
-    final ok = _usuarioRepo.iniciarSesion(_usuario.text, _clave.text);
-    if (!ok) {
+    FocusScope.of(context).unfocus();
+    final error = _usuarioRepo.iniciarSesion(_usuario.text, _clave.text);
+    if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Escribe tu usuario y contraseña')),
+        SnackBar(content: Text(error)),
       );
       return;
     }

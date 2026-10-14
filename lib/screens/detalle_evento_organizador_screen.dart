@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import '../models/evento.dart';
+import '../repositories/cambios.dart';
 import '../repositories/evento_repository.dart';
-import '../repositories/usuario_repository.dart';
 import '../theme/colores.dart';
+import '../utils/formato.dart';
 import '../widgets/banner_premium.dart';
 import '../widgets/dialogo_cancelar_evento.dart';
 import '../widgets/dialogo_reprogramar_evento.dart';
 import '../widgets/encabezado_usuario.dart';
-import '../widgets/grafico_area.dart';
 import '../widgets/grafico_barras.dart';
 import '../widgets/pantalla_con_barra.dart';
 import '../widgets/tarjeta_estadistica.dart';
@@ -17,10 +17,12 @@ import '../widgets/tarjeta_evento_horizontal.dart';
 /// Se abre desde el Panel de Organizador con el botón verde "Ver":
 ///   Navigator.pushNamed(context, '/detalle-evento-organizador', arguments: evento);
 ///
+/// Las cifras salen del evento guardado (inscritos, cupos, visualizaciones...).
 /// Se ve distinta según evento.estado:
-///   'Activo'     -> estadísticas, gráfico de barras y botones Reprogramar / Cancelar
+///   'Activo'     -> botones Reprogramar / Cancelar
 ///   'Cancelado'  -> inscripciones cerradas, "En devolución" y sin botones
-///   'Finalizado' -> asistencia, valoración y gráfico de flujo de check-in
+///   'Finalizado' -> el evento ya pasó
+/// Reprogramar, cancelar y eliminar se guardan de verdad (SharedPreferences).
 class DetalleEventoOrganizadorScreen extends StatefulWidget {
   const DetalleEventoOrganizadorScreen({super.key});
 
@@ -31,60 +33,166 @@ class DetalleEventoOrganizadorScreen extends StatefulWidget {
 
 class _DetalleEventoOrganizadorScreenState
     extends State<DetalleEventoOrganizadorScreen> {
-  // Solo es una demostración: el "cancelado" vive en esta pantalla y se
-  // pierde al salir (el evento real no se modifica). Cuando haya backend,
-  // aquí se llamaría a la API para cancelar de verdad.
-  bool _cancelado = false;
+  final _repo = EventoRepository();
+
+  Evento? _evento() {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Evento) return args;
+    final creados = _repo.obtenerEventosCreados();
+    return creados.isEmpty ? null : creados.first;
+  }
+
+  bool _esEventoPropio(Evento e) => e.creadorId.isNotEmpty;
+
+  /// "$ 1.920.000": precio por inscritos.
+  String _recaudo(Evento e) =>
+      '\$ ${formatoMiles((e.precioValor * e.inscritos).round())}';
 
   Future<void> _cancelarEvento(Evento evento) async {
     final confirmo = await showDialog<bool>(
       context: context,
-      builder: (_) => const DialogoCancelarEvento(),
+      builder: (_) => DialogoCancelarEvento(
+        inscritos: '${evento.inscritos}',
+        monto: _recaudo(evento),
+      ),
     );
     if (confirmo == true && mounted) {
-      setState(() => _cancelado = true);
+      _repo.cancelarEvento(evento.id);
     }
+  }
+
+  Future<void> _reprogramar(Evento evento) async {
+    final f = evento.fecha ?? DateTime.now();
+    final r = await showDialog<NuevaProgramacion>(
+      context: context,
+      builder: (_) => DialogoReprogramarEvento(
+        fechaInicial: f,
+        inicioInicial: const TimeOfDay(hour: 14, minute: 0),
+        cierreInicial: const TimeOfDay(hour: 19, minute: 0),
+      ),
+    );
+    if (r == null || !mounted) return;
+    _repo.reprogramarEvento(evento.id, r.fecha, r.inicio, r.cierre);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Evento reprogramado')),
+    );
+  }
+
+  Future<void> _eliminar(Evento evento) async {
+    if (evento.estado == 'Activo' && evento.inscritos > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cancela el evento antes de eliminarlo (hay inscritos)'),
+        ),
+      );
+      return;
+    }
+    final confirmo = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colores.fondo,
+        title: const Text('¿Eliminar este evento?'),
+        content: const Text('Se borrará de tu lista y no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Volver'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar',
+                style: TextStyle(color: Color(0xFF8E0B12))),
+          ),
+        ],
+      ),
+    );
+    if (confirmo != true || !mounted) return;
+    _repo.eliminarEvento(evento.id);
+    Navigator.pop(context);
+  }
+
+  /// Inscripciones de los últimos 7 días (para el gráfico de barras).
+  (List<int>, List<String>) _inscripcionesPorDia(Evento e) {
+    const dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    final hoy = soloFecha(DateTime.now());
+    final valores = <int>[];
+    final etiquetas = <String>[];
+    for (int i = 6; i >= 0; i--) {
+      final dia = hoy.subtract(Duration(days: i));
+      final n = e.inscripciones.where((iso) {
+        final d = DateTime.tryParse(iso);
+        return d != null && soloFecha(d) == dia;
+      }).length;
+      valores.add(n);
+      etiquetas.add(dias[dia.weekday - 1]);
+    }
+    return (valores, etiquetas);
   }
 
   @override
   Widget build(BuildContext context) {
-    final args = ModalRoute.of(context)?.settings.arguments;
-    final Evento evento = args is Evento
-        ? args
-        : EventoRepository().obtenerEventosCreados().first;
+    return EscuchaDatos(builder: _contenido);
+  }
 
-    final estado = _cancelado ? 'Cancelado' : evento.estado;
+  Widget _contenido(BuildContext context) {
+    final evento = _evento();
+    if (evento == null) {
+      return PantallaConBarra(
+        indiceActual: 2,
+        child: SafeArea(
+          child: Center(
+            child: TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Este evento ya no existe. Volver'),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final estado = evento.estado;
     final cancelado = estado == 'Cancelado';
     final finalizado = estado == 'Finalizado';
     final activo = !cancelado && !finalizado;
+    final propio = _esEventoPropio(evento);
 
-    // Datos simulados de las 4 tarjetas: (valor, etiqueta)
+    final hoy = soloFecha(DateTime.now());
+    final f = evento.fecha;
+    final diasRestantes =
+        f == null ? 0 : (f.difference(hoy).inDays).clamp(0, 99999);
+    final rating = _repo.ratingDeEvento(evento.id);
+
+    // Tarjetas con datos reales: (valor, etiqueta)
     final List<(String, String)> stats = cancelado
         ? [
-            ('32', 'Inscripciones\ncerradas'),
-            ('0', 'Sistemáticamente\nbloqueadas'),
-            ('142', 'Visualizaciones'),
+            ('${evento.inscritos}', 'Inscripciones\ncerradas'),
+            ('${evento.cuposDisponibles}', 'Entradas\nrestantes'),
+            ('${evento.visualizaciones}', 'Visualizaciones'),
             ('0', 'Días restantes'),
           ]
         : finalizado
             ? [
-                ('192', 'Asistieron'),
-                ('24', 'No asistieron'),
-                ('216', 'Total inscritos'),
-                ('4.2 ★', 'Valoración'),
+                ('${evento.inscritos}', 'Total inscritos'),
+                ('${evento.cuposDisponibles}', 'Cupos sin usar'),
+                ('${evento.visualizaciones}', 'Visualizaciones'),
+                (rating == 0 ? '-' : '${rating.toStringAsFixed(1)} ★', 'Valoración'),
               ]
             : [
-                ('32', 'Total inscritos'),
-                ('18', 'Entradas\nrestantes'),
-                ('142', 'Visualizaciones'),
-                ('53', 'Días restantes'),
+                ('${evento.inscritos}', 'Total inscritos'),
+                ('${evento.cuposDisponibles}', 'Entradas\nrestantes'),
+                ('${evento.visualizaciones}', 'Visualizaciones'),
+                ('$diasRestantes', 'Días restantes'),
               ];
 
     final textoRecaudo = cancelado
-        ? 'En devolución: \$ 1.920.000'
+        ? 'En devolución: ${_recaudo(evento)}'
         : evento.esGratis
             ? 'Recaudo: \$ Evento Gratuito'
-            : 'Recaudo: \$ 1.920.000';
+            : 'Recaudo: ${_recaudo(evento)}';
+
+    final (valoresGrafico, etiquetasGrafico) = _inscripcionesPorDia(evento);
+    final mayor = valoresGrafico.reduce((a, b) => a > b ? a : b);
+    final maximoGrafico = ((mayor < 3 ? 3 : mayor) / 3).ceil() * 3;
 
     return PantallaConBarra(
       indiceActual: 2, // Mis eventos
@@ -94,8 +202,7 @@ class _DetalleEventoOrganizadorScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              EncabezadoUsuario(
-                  usuario: UsuarioRepository().obtenerUsuarioActual()),
+              EncabezadoUsuario(),
               const SizedBox(height: 18),
 
               // ----- Título con flecha -----
@@ -212,11 +319,9 @@ class _DetalleEventoOrganizadorScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      finalizado
-                          ? 'Flujo de asistencia\n(Check-in QR)'
-                          : 'Inscripciones por día',
-                      style: const TextStyle(
+                    const Text(
+                      'Inscripciones por día\n(últimos 7 días)',
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                         color: Colors.black,
@@ -224,39 +329,24 @@ class _DetalleEventoOrganizadorScreenState
                       ),
                     ),
                     const SizedBox(height: 14),
-                    if (finalizado)
-                      const GraficoArea(
-                        valores: [2, 3, 30, 37, 10, 5],
-                        etiquetas: ['9', '10', '11', '12', '1', '2'],
-                      )
-                    else
-                      const GraficoBarras(
-                        valores: [3, 7, 5, 9, 4, 2, 2],
-                        etiquetas: [
-                          'Lun',
-                          'Mar',
-                          'Mié',
-                          'Jue',
-                          'Vie',
-                          'Sáb',
-                          'Dom'
-                        ],
-                      ),
+                    GraficoBarras(
+                      valores: valoresGrafico,
+                      etiquetas: etiquetasGrafico,
+                      maximo: maximoGrafico,
+                      paso: maximoGrafico ~/ 3,
+                    ),
                   ],
                 ),
               ),
 
               // ----- Botones (solo si el evento sigue activo) -----
-              if (activo) ...[
+              if (activo && propio) ...[
                 const SizedBox(height: 26),
                 _BotonAccion(
                   texto: 'Reprogramar evento',
                   fondo: const Color(0xFFE8DDA6),
                   colorTexto: Colors.black,
-                  onTap: () => showDialog(
-                    context: context,
-                    builder: (_) => const DialogoReprogramarEvento(),
-                  ),
+                  onTap: () => _reprogramar(evento),
                 ),
                 const SizedBox(height: 18),
                 _BotonAccion(
@@ -264,6 +354,15 @@ class _DetalleEventoOrganizadorScreenState
                   fondo: const Color(0xFF8E0B12),
                   colorTexto: Colors.white,
                   onTap: () => _cancelarEvento(evento),
+                ),
+              ],
+              if (propio) ...[
+                const SizedBox(height: 18),
+                _BotonAccion(
+                  texto: 'Eliminar evento',
+                  fondo: Colors.white,
+                  colorTexto: const Color(0xFF8E0B12),
+                  onTap: () => _eliminar(evento),
                 ),
               ],
               const SizedBox(height: 24),

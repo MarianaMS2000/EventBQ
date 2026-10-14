@@ -17,6 +17,11 @@ class CalificarScreen extends StatefulWidget {
 class _CalificarScreenState extends State<CalificarScreen> {
   int _estrellas = 0;
 
+  Evento _evento() {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    return args is Evento ? args : EventoRepository().obtenerEventosTop()[0]; // respaldo
+  }
+
   void _enviar() {
     if (_estrellas == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -24,15 +29,14 @@ class _CalificarScreenState extends State<CalificarScreen> {
       );
       return;
     }
-    // TODO: cuando exista backend, enviar la calificación aquí
+    // Se guarda la calificación (SharedPreferences) para el rating del organizador.
+    EventoRepository().calificar(_evento().id, _estrellas);
     Navigator.pushReplacementNamed(context, '/gracias-opinion');
   }
 
   @override
   Widget build(BuildContext context) {
-    final args = ModalRoute.of(context)?.settings.arguments;
-    final Evento e =
-        args is Evento ? args : EventoRepository().obtenerEventosTop()[0]; // respaldo
+    final Evento e = _evento();
 
     return Scaffold(
       backgroundColor: Colores.azulOscuro,

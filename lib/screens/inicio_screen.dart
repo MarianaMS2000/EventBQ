@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../repositories/categoria_repository.dart';
 import '../repositories/evento_repository.dart';
-import '../repositories/usuario_repository.dart';
 import '../widgets/banner_premium.dart';
 import '../widgets/barra_busqueda.dart';
 import '../widgets/categoria_item.dart';
@@ -23,7 +22,6 @@ class InicioScreen extends StatefulWidget {
 }
 
 class _InicioScreenState extends State<InicioScreen> {
-  final _usuarioRepo = UsuarioRepository();
   final _categoriaRepo = CategoriaRepository();
   final _eventoRepo = EventoRepository();
 
@@ -39,7 +37,7 @@ class _InicioScreenState extends State<InicioScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            EncabezadoUsuario(usuario: _usuarioRepo.obtenerUsuarioActual()),
+            EncabezadoUsuario(),
             const SizedBox(height: 16),
             const BarraBusqueda(hint: 'Un evento de salchipapa?'),
             const SizedBox(height: 20),

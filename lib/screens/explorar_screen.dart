@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/filtros_evento.dart';
 import '../repositories/evento_repository.dart';
-import '../repositories/usuario_repository.dart';
 import '../theme/colores.dart';
 import '../widgets/banner_premium.dart';
 import '../widgets/barra_busqueda.dart';
@@ -21,7 +20,6 @@ class ExplorarScreen extends StatefulWidget {
 }
 
 class _ExplorarScreenState extends State<ExplorarScreen> {
-  final _usuarioRepo = UsuarioRepository();
   final _eventoRepo = EventoRepository();
   String _texto = '';
   FiltrosEvento _filtros = FiltrosEvento();
@@ -61,7 +59,7 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            EncabezadoUsuario(usuario: _usuarioRepo.obtenerUsuarioActual()),
+            EncabezadoUsuario(),
             const SizedBox(height: 16),
             BarraBusqueda(
               hint: 'Que te interesa',

@@ -1,17 +1,26 @@
 import 'package:flutter/material.dart';
 import '../models/usuario.dart';
+import '../repositories/cambios.dart';
+import '../repositories/notificacion_repository.dart';
+import '../repositories/usuario_repository.dart';
 import '../theme/colores.dart';
 import 'imagen_asset.dart';
 
 /// Header de Inicio, Explorar, Detalle y Notificaciones:
 /// avatar + "Hola!" + nombre, y campana (abre Notificaciones) a la derecha.
 class EncabezadoUsuario extends StatelessWidget {
-  final Usuario usuario;
+  /// Si no se pasa, usa el usuario con la sesión abierta (se actualiza solo).
+  final Usuario? usuario;
 
-  const EncabezadoUsuario({super.key, required this.usuario});
+  const EncabezadoUsuario({super.key, this.usuario});
 
   @override
   Widget build(BuildContext context) {
+    return EscuchaDatos(builder: _contenido);
+  }
+
+  Widget _contenido(BuildContext context) {
+    final usuario = this.usuario ?? UsuarioRepository().obtenerUsuarioActual();
     return Row(
       children: [
         ClipOval(
@@ -54,16 +63,21 @@ class EncabezadoUsuario extends StatelessWidget {
               alignment: Alignment.center,
               children: [
                 const Icon(Icons.notifications_none, color: Colores.azulOscuro, size: 22),
+                // Punto rojo: solo si hay notificaciones sin leer.
                 Positioned(
                   top: 10,
                   right: 11,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colores.rojoNotificacion,
-                      shape: BoxShape.circle,
-                    ),
+                  child: EscuchaDatos(
+                    builder: (_) => NotificacionRepository().contarNoLeidas() == 0
+                        ? const SizedBox.shrink()
+                        : Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: Colores.rojoNotificacion,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
                   ),
                 ),
               ],

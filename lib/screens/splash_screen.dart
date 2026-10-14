@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../preferences/preferencias_usuario.dart';
+import '../repositories/usuario_repository.dart';
 import '../theme/colores.dart';
 import '../widgets/logo_flor.dart';
 
@@ -21,7 +22,8 @@ class _SplashScreenState extends State<SplashScreen> {
   void _decidirDestino() {
     if (!mounted) return;
     String ruta;
-    if (!PreferenciasUsuario.sesionIniciada) {
+    // La sesión solo vale si la cuenta guardada todavía existe.
+    if (!UsuarioRepository().haySesion) {
       ruta = '/bienvenida';
     } else if (!PreferenciasUsuario.onboardingCompletado) {
       ruta = '/onboarding';

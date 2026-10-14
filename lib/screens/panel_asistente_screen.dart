@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/evento.dart';
+import '../repositories/cambios.dart';
 import '../repositories/evento_repository.dart';
-import '../repositories/usuario_repository.dart';
 import '../theme/colores.dart';
 import '../widgets/banner_premium.dart';
 import '../widgets/dialogo_anular_inscripcion.dart';
@@ -21,18 +21,6 @@ class PanelAsistenteScreen extends StatefulWidget {
 
 class _PanelAsistenteScreenState extends State<PanelAsistenteScreen> {
   final _eventoRepo = EventoRepository();
-  final _usuarioRepo = UsuarioRepository();
-
-  // Copia local de las entradas: al anular solo se quita de esta lista, así
-  // que al salir y volver a entrar el ticket aparece otra vez (demostración).
-  // Cuando haya backend, aquí se llamaría a la API para anular de verdad.
-  late final List<Evento> _entradas;
-
-  @override
-  void initState() {
-    super.initState();
-    _entradas = List.of(_eventoRepo.obtenerEntradasCompradas());
-  }
 
   /// Anular reserva: confirmación -> nota de reembolso -> panel actualizado.
   Future<void> _anularReserva(Evento evento) async {
@@ -51,12 +39,17 @@ class _PanelAsistenteScreenState extends State<PanelAsistenteScreen> {
     );
     if (!mounted) return;
 
-    setState(() => _entradas.removeWhere((e) => e.id == evento.id));
+    // Se quita de la lista y se guarda: la entrada ya no vuelve a aparecer.
+    _eventoRepo.anularEntrada(evento.id);
   }
 
   @override
   Widget build(BuildContext context) {
-    final entradas = _entradas;
+    return EscuchaDatos(builder: _contenido);
+  }
+
+  Widget _contenido(BuildContext context) {
+    final entradas = _eventoRepo.obtenerEntradasCompradas();
 
     return PantallaConBarra(
       indiceActual: 2, // Mis eventos
@@ -73,8 +66,7 @@ class _PanelAsistenteScreenState extends State<PanelAsistenteScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      EncabezadoUsuario(
-                          usuario: _usuarioRepo.obtenerUsuarioActual()),
+                      EncabezadoUsuario(),
                       const SizedBox(height: 18),
                       Row(
                         children: [

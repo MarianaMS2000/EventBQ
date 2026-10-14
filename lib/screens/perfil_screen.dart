@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../repositories/cambios.dart';
 import '../models/evento.dart';
 import '../navegacion.dart';
 import '../repositories/evento_repository.dart';
@@ -11,12 +12,10 @@ import '../widgets/tarjeta_evento_horizontal.dart';
 
 /// Perfil del usuario. Tiene dos modos:
 ///  - lectura (lápiz arriba a la derecha de la tarjeta)
-///  - edición (ícono de guardar): Email, Teléfono y Rol se pueden editar,
-///    pero por ahora (solo frontend) NO se guarda nada: al guardar solo
-///    sale un aviso verde de "cambio exitoso".
+///  - edición (ícono de guardar): Email, Teléfono y Rol se pueden editar y
+///    se guardan en SharedPreferences (siguen ahí al cerrar y abrir la app).
 ///
-/// La cámara de la foto abre la galería, pero tampoco guarda ni muestra la
-/// foto elegida (solo el aviso verde).
+/// La cámara de la foto abre la galería y guarda la foto elegida.
 class PerfilScreen extends StatefulWidget {
   const PerfilScreen({super.key});
 
@@ -50,23 +49,34 @@ class _PerfilScreenState extends State<PerfilScreen> {
   }
 
   void _guardar() {
-    if (!_correo.text.contains('@')) {
+    FocusScope.of(context).unfocus();
+    final error = _usuarioRepo.actualizarPerfil(
+      correo: _correo.text,
+      telefono: _telefono.text,
+      rol: _rol.text,
+    );
+    if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Escribe un email válido')),
+        SnackBar(content: Text(error)),
       );
       return;
     }
-    // Solo frontend: NO se guarda nada. Cuando haya backend, aquí se llama
-    // a la API (o a _usuarioRepo.actualizarPerfil).
     setState(() => _editando = false);
     mostrarAvisoExito(context, '¡Datos actualizados con éxito!');
   }
 
-  /// Abre la galería. La foto elegida no se guarda ni se muestra (demo).
+  /// Abre la galería y guarda la foto elegida en el perfil.
   Future<void> _elegirFoto() async {
     try {
-      final foto = await ImagePicker().pickImage(source: ImageSource.gallery);
+      final foto = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 400,
+        imageQuality: 70,
+      );
       if (foto == null || !mounted) return; // canceló la galería
+      final bytes = await foto.readAsBytes();
+      _usuarioRepo.actualizarFoto(ImagenAsset.bytesATexto(bytes));
+      if (!mounted) return;
       mostrarAvisoExito(context, '¡Foto de perfil actualizada!');
     } catch (_) {
       if (!mounted) return;
@@ -78,8 +88,15 @@ class _PerfilScreenState extends State<PerfilScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return EscuchaDatos(builder: _contenido);
+  }
+
+  Widget _contenido(BuildContext context) {
     final u = _usuarioRepo.obtenerUsuarioActual();
     final guardados = _eventoRepo.obtenerFavoritos();
+    final asistidos = _eventoRepo.obtenerEntradasCompradas().length;
+    final creados = _eventoRepo.obtenerEventosDeCreador(u.id).length;
+    final rating = _eventoRepo.ratingDeCreador(u.id);
 
     return SingleChildScrollView(
       child: Column(
@@ -115,10 +132,11 @@ class _PerfilScreenState extends State<PerfilScreen> {
                     const SizedBox(height: 14),
                     Row(
                       children: [
+                        _estadistica('$asistidos', 'Eventos asistidos'),
+                        _estadistica('$creados', 'Eventos creados'),
                         _estadistica(
-                            '${u.eventosAsistidos}', 'Eventos asistidos'),
-                        _estadistica('${u.eventosCreados}', 'Eventos creados'),
-                        _estadistica('${u.rating}', 'Rating'),
+                            rating == 0 ? '-' : rating.toStringAsFixed(1),
+                            'Rating'),
                       ],
                     ),
                   ],

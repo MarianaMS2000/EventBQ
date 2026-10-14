@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/organizador.dart';
 import '../repositories/evento_repository.dart';
 import '../repositories/organizador_repository.dart';
 import '../theme/colores.dart';
@@ -11,8 +12,15 @@ class PerfilOrganizadorScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final org = OrganizadorRepository().obtenerOrganizador();
-    final eventos = EventoRepository().obtenerEventosDeOrganizador();
+    // El detalle del evento le pasa el organizador (de la cuenta que lo creó
+    // o el de ejemplo).
+    final args = ModalRoute.of(context)?.settings.arguments;
+    final Organizador org =
+        args is Organizador ? args : OrganizadorRepository().obtenerOrganizador();
+    final repo = EventoRepository();
+    final eventos = org.id == OrganizadorRepository().obtenerOrganizador().id
+        ? repo.obtenerEventosDeOrganizador()
+        : repo.obtenerEventosDeCreador(org.id);
 
     return PantallaConBarra(
       indiceActual: 1,
@@ -70,7 +78,9 @@ class PerfilOrganizadorScreen extends StatelessWidget {
                         children: [
                           _estadistica('${org.eventos}', 'Eventos'),
                           _estadistica('${org.asistentes}', 'Asistentes'),
-                          _estadistica('${org.rating}', 'Rating'),
+                          _estadistica(
+                              org.rating == 0 ? '-' : org.rating.toStringAsFixed(1),
+                              'Rating'),
                         ],
                       ),
                     ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../repositories/cambios.dart';
 import '../theme/colores.dart';
 import '../widgets/barra_navegacion.dart';
 import 'explorar_screen.dart';
@@ -52,6 +53,12 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // EscuchaDatos redibuja las pestañas cuando se guarda algo (evento nuevo,
+    // inscripción, perfil...), así siempre muestran información actualizada.
+    return EscuchaDatos(builder: _contenido);
+  }
+
+  Widget _contenido(BuildContext context) {
     final paginas = <Widget>[
       InicioScreen(
         key: ValueKey('inicio$_versionInicio'),

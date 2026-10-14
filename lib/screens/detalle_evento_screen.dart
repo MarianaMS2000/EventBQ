@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/evento.dart';
+import '../models/organizador.dart';
+import '../repositories/cambios.dart';
 import '../repositories/evento_repository.dart';
 import '../repositories/organizador_repository.dart';
-import '../repositories/usuario_repository.dart';
 import '../theme/colores.dart';
 import '../widgets/agenda_timeline.dart';
 import '../widgets/banner_premium.dart';
@@ -22,8 +23,15 @@ class DetalleEventoScreen extends StatefulWidget {
 
 class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
   final _eventoRepo = EventoRepository();
-  final _usuarioRepo = UsuarioRepository();
-  final _organizador = OrganizadorRepository().obtenerOrganizador();
+  bool _visitaContada = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_visitaContada) return;
+    _visitaContada = true;
+    _eventoRepo.registrarVisualizacion(_obtenerEvento());
+  }
 
   Evento _obtenerEvento() {
     final args = ModalRoute.of(context)?.settings.arguments;
@@ -32,17 +40,35 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
   }
 
   Future<void> _inscribirse(Evento evento) async {
-    final confirmado = await mostrarDialogoConfirmarAsistencia(context, evento);
-    if (confirmado && mounted) {
-      _eventoRepo.agregarEntrada(evento); // aparece en Mis Entradas Compradas
-      Navigator.pushReplacementNamed(context, '/registro-exitoso', arguments: evento);
+    // Antes de pedir confirmación, revisa que sí se pueda inscribir.
+    if (_eventoRepo.estaInscrito(evento.id)) {
+      _aviso('Ya estás inscrito a este evento');
+      return;
     }
+    final confirmado = await mostrarDialogoConfirmarAsistencia(context, evento);
+    if (!confirmado || !mounted) return;
+    // Se guarda la inscripción: aparece en Mis Entradas Compradas.
+    final error = _eventoRepo.agregarEntrada(evento);
+    if (error != null) {
+      _aviso(error);
+      return;
+    }
+    Navigator.pushReplacementNamed(context, '/registro-exitoso', arguments: evento);
+  }
+
+  void _aviso(String texto) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(texto)));
   }
 
   @override
   Widget build(BuildContext context) {
+    return EscuchaDatos(builder: _contenido);
+  }
+
+  Widget _contenido(BuildContext context) {
     final e = _obtenerEvento();
     final favorito = _eventoRepo.esFavorito(e.id);
+    final organizador = OrganizadorRepository().obtenerParaEvento(e);
 
     return PantallaConBarra(
       indiceActual: 1,
@@ -55,7 +81,7 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: EncabezadoUsuario(usuario: _usuarioRepo.obtenerUsuarioActual()),
+                child: EncabezadoUsuario(),
               ),
               // ----- Imagen hero -----
               SizedBox(
@@ -173,7 +199,7 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    _tarjetaOrganizador(),
+                    _tarjetaOrganizador(organizador),
                     if (e.cuposTotales > 0) ...[
                       const SizedBox(height: 22),
                       _cupos(e),
@@ -310,7 +336,7 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
     );
   }
 
-  Widget _tarjetaOrganizador() {
+  Widget _tarjetaOrganizador(Organizador org) {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -327,7 +353,7 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
               width: 46,
               height: 46,
               child: ImagenAsset(
-                ruta: _organizador.foto,
+                ruta: org.foto,
                 iconoPlaceholder: Icons.person,
               ),
             ),
@@ -338,7 +364,7 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _organizador.nombre,
+                  org.nombre,
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
@@ -346,14 +372,18 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
                   ),
                 ),
                 Text(
-                  _organizador.rol,
+                  org.rol,
                   style: const TextStyle(fontSize: 11, color: Colores.azulOscuro),
                 ),
               ],
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.pushNamed(context, '/perfil-organizador'),
+            onPressed: () => Navigator.pushNamed(
+              context,
+              '/perfil-organizador',
+              arguments: org,
+            ),
             child: const Text(
               'Ver perfil',
               style: TextStyle(
@@ -426,6 +456,17 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
   }
 
   Widget _botonEntrada(Evento e) {
+    final inscrito = _eventoRepo.estaInscrito(e.id);
+    final sinCupos = e.cuposTotales > 0 && e.cuposDisponibles <= 0;
+    final texto = inscrito
+        ? 'Ya estás inscrito'
+        : e.estado != 'Activo'
+            ? 'Evento no disponible'
+            : sinCupos
+                ? 'Sin cupos'
+                : e.esGratis
+                    ? 'Entrada gratis Aquí'
+                    : 'Reservar entrada';
     return Container(
       width: 250,
       height: 50,
@@ -438,7 +479,7 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
       child: TextButton(
         onPressed: () => _inscribirse(e),
         child: Text(
-          e.esGratis ? 'Entrada gratis Aquí' : 'Reservar entrada',
+          texto,
           style: const TextStyle(
             color: Colors.white,
             fontSize: 17,

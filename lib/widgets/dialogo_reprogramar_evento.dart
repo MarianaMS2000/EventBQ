@@ -1,22 +1,79 @@
 import 'package:flutter/material.dart';
 import '../theme/colores.dart';
+import '../utils/formato.dart';
+
+/// Lo que elige el organizador en el diálogo de reprogramar.
+class NuevaProgramacion {
+  final DateTime fecha;
+  final TimeOfDay inicio;
+  final TimeOfDay cierre;
+
+  const NuevaProgramacion(this.fecha, this.inicio, this.cierre);
+}
 
 /// Ventana "¿Deseas reprogramar el evento?".
-/// Por ahora es solo diseño: "Guardar nueva fecha" y "Volver" solo cierran
-/// la ventana y regresan a la pantalla anterior.
+/// Se toca cada campo para elegir fecha u hora. Devuelve una
+/// [NuevaProgramacion] si presiona "Guardar nueva fecha", o null si vuelve.
 ///
-/// Uso:  showDialog(context: context, builder: (_) => const DialogoReprogramarEvento());
-class DialogoReprogramarEvento extends StatelessWidget {
-  final String fecha;
-  final String horaInicio;
-  final String horaCierre;
+/// Uso:  final r = await showDialog<NuevaProgramacion>(
+///         context: context,
+///         builder: (_) => DialogoReprogramarEvento(fechaInicial: ..., ...));
+class DialogoReprogramarEvento extends StatefulWidget {
+  final DateTime fechaInicial;
+  final TimeOfDay inicioInicial;
+  final TimeOfDay cierreInicial;
 
   const DialogoReprogramarEvento({
     super.key,
-    this.fecha = '20/12/2026',
-    this.horaInicio = '1:00 PM',
-    this.horaCierre = '4:00 PM',
+    required this.fechaInicial,
+    required this.inicioInicial,
+    required this.cierreInicial,
   });
+
+  @override
+  State<DialogoReprogramarEvento> createState() =>
+      _DialogoReprogramarEventoState();
+}
+
+class _DialogoReprogramarEventoState extends State<DialogoReprogramarEvento> {
+  late DateTime _fecha = widget.fechaInicial;
+  late TimeOfDay _inicio = widget.inicioInicial;
+  late TimeOfDay _cierre = widget.cierreInicial;
+
+  Future<void> _elegirFecha() async {
+    final hoy = soloFecha(DateTime.now());
+    final f = await showDatePicker(
+      context: context,
+      initialDate: _fecha.isBefore(hoy) ? hoy : _fecha,
+      firstDate: hoy,
+      lastDate: DateTime(2035),
+    );
+    if (f != null) setState(() => _fecha = f);
+  }
+
+  Future<void> _elegirHora({required bool inicio}) async {
+    final h = await showTimePicker(
+      context: context,
+      initialTime: inicio ? _inicio : _cierre,
+      initialEntryMode: TimePickerEntryMode.inputOnly,
+    );
+    if (h == null) return;
+    setState(() => inicio ? _inicio = h : _cierre = h);
+  }
+
+  void _guardar() {
+    final ini = _inicio.hour * 60 + _inicio.minute;
+    final fin = _cierre.hour * 60 + _cierre.minute;
+    if (fin <= ini) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('La hora de cierre debe ser después de la de inicio'),
+        ),
+      );
+      return;
+    }
+    Navigator.pop(context, NuevaProgramacion(_fecha, _inicio, _cierre));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,17 +108,19 @@ class DialogoReprogramarEvento extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
-            _campo('FECHA', fecha),
+            _campo('FECHA', formatoFecha(_fecha), _elegirFecha),
             const SizedBox(height: 14),
-            _campo('HORA DE INICIO', horaInicio),
+            _campo('HORA DE INICIO', formatoHora(_inicio),
+                () => _elegirHora(inicio: true)),
             const SizedBox(height: 14),
-            _campo('HORA DE CIERRE', horaCierre),
+            _campo('HORA DE CIERRE', formatoHora(_cierre),
+                () => _elegirHora(inicio: false)),
             const SizedBox(height: 26),
             _boton(
               texto: 'Guardar nueva fecha',
               fondo: const Color(0xFF2F86C8),
               colorTexto: Colors.white,
-              onTap: () => Navigator.pop(context),
+              onTap: _guardar,
             ),
             const SizedBox(height: 10),
             _boton(
@@ -76,8 +135,10 @@ class DialogoReprogramarEvento extends StatelessWidget {
     );
   }
 
-  Widget _campo(String etiqueta, String valor) {
-    return Column(
+  Widget _campo(String etiqueta, String valor, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
       children: [
         Text(
           etiqueta,
@@ -89,7 +150,7 @@ class DialogoReprogramarEvento extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Container(
-          width: 92,
+          width: 110,
           padding: const EdgeInsets.symmetric(vertical: 5),
           alignment: Alignment.center,
           decoration: BoxDecoration(
@@ -102,6 +163,7 @@ class DialogoReprogramarEvento extends StatelessWidget {
           ),
         ),
       ],
+    ),
     );
   }
 

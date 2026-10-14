@@ -2,8 +2,11 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../data/datos_simulados.dart';
+import '../models/evento.dart';
 import '../repositories/evento_repository.dart';
 import '../theme/colores.dart';
+import '../utils/formato.dart';
+import '../widgets/imagen_asset.dart';
 import '../widgets/dialogo_evento_publicado.dart';
 import '../widgets/dialogo_limite_alcanzado.dart';
 import '../widgets/pantalla_con_barra.dart';
@@ -11,8 +14,9 @@ import '../widgets/pantalla_con_barra.dart';
 /// "Crear nuevo evento": formulario que se abre con el botón + del centro
 /// de la barra de navegación.
 ///
-/// Por ahora es solo frontend: "Publicar evento" no guarda nada, muestra un
-/// aviso y vuelve a la pantalla anterior.
+/// "Publicar evento" valida el formulario, guarda el evento en la lista de
+/// eventos (List<Evento>) y en SharedPreferences, y abre el Panel de Organizador.
+/// El evento aparece en Explorar, Inicio y en "Mis eventos creados".
 class CrearEventoScreen extends StatefulWidget {
   const CrearEventoScreen({super.key});
 
@@ -32,7 +36,7 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
   final _precioCtrl = TextEditingController();
 
   String? _categoria;
-  DateTime _fecha = DateTime(2026, 12, 24);
+  DateTime _fecha = soloFecha(DateTime.now().add(const Duration(days: 7)));
   TimeOfDay _horaInicio = const TimeOfDay(hour: 14, minute: 0);
   TimeOfDay _horaCierre = const TimeOfDay(hour: 19, minute: 0);
   final List<Uint8List> _imagenes = []; // imágenes elegidas de la galería
@@ -51,21 +55,16 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
   }
 
   // ---------- formatos ----------
-  String _formatoFecha(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+  String _formatoFecha(DateTime d) => formatoFecha(d);
 
-  String _formatoHora(TimeOfDay t) {
-    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
-    final m = t.minute.toString().padLeft(2, '0');
-    return '$h:$m ${t.period == DayPeriod.am ? 'AM' : 'PM'}';
-  }
+  String _formatoHora(TimeOfDay t) => formatoHora(t);
 
   // ---------- selectores ----------
   Future<void> _elegirFecha() async {
     final f = await showDatePicker(
       context: context,
       initialDate: _fecha,
-      firstDate: DateTime(2024),
+      firstDate: soloFecha(DateTime.now()),
       lastDate: DateTime(2035),
     );
     if (f != null) setState(() => _fecha = f);
@@ -88,7 +87,8 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
     try {
       final foto = await _picker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 85,
+        maxWidth: 900,
+        imageQuality: 60,
       );
       if (foto == null) return; // canceló
       final bytes = await foto.readAsBytes();
@@ -114,8 +114,71 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
     );
   }
 
+  void _aviso(String texto) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(texto)));
+  }
+
+  /// Revisa el formulario. Devuelve el mensaje del primer error, o null si todo está bien.
+  String? _validar() {
+    if (_nombreCtrl.text.trim().length < 3) {
+      return 'Escribe el nombre del evento (mínimo 3 letras)';
+    }
+    if (_categoria == null) return 'Elige una categoría';
+    if (_ubicacionCtrl.text.trim().length < 3) {
+      return 'Escribe la ubicación del evento';
+    }
+    if (_sobreCtrl.text.trim().isEmpty) {
+      return 'Cuéntanos de qué trata el evento';
+    }
+    final inicio = _horaInicio.hour * 60 + _horaInicio.minute;
+    final cierre = _horaCierre.hour * 60 + _horaCierre.minute;
+    if (cierre <= inicio) {
+      return 'La hora de cierre debe ser después de la hora de inicio';
+    }
+    if (_fecha.isBefore(soloFecha(DateTime.now()))) {
+      return 'La fecha del evento no puede ser anterior a hoy';
+    }
+    if (!_gratis) {
+      final precio = parsearPrecio(_precioCtrl.text);
+      if (precio == null || precio <= 0) {
+        return 'Escribe el precio o elige "Gratis"';
+      }
+    }
+    return null;
+  }
+
+  /// Arma el Evento con lo que escribió el organizador.
+  Evento _construirEvento() {
+    final valor = _gratis ? 0.0 : (parsearPrecio(_precioCtrl.text) ?? 0.0);
+    final imagenes = _imagenes.map(ImagenAsset.bytesATexto).toList();
+    final incluye = _incluyeCtrl.text
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    final e = Evento(
+      id: 'u${DateTime.now().microsecondsSinceEpoch}',
+      titulo: _nombreCtrl.text.trim(),
+      categoria: _categoria!,
+      fechaCompleta: '',
+      dia: '',
+      mes: '',
+      lugar: _ubicacionCtrl.text.trim(),
+      precio: formatoPrecio(valor),
+      precioValor: valor,
+      imagen: imagenes.isNotEmpty ? imagenes[0] : '',
+      imagenDetalle: imagenes.length > 1 ? imagenes[1] : null,
+      descripcion: _sobreCtrl.text.trim(),
+      incluye: incluye,
+      cuposDisponibles: _aforo,
+      cuposTotales: _aforo,
+    );
+    aplicarFechaAEvento(e, _fecha, _horaInicio, _horaCierre);
+    return e;
+  }
+
   /// Publicar: si ya llegó al límite muestra "¡Límite alcanzado!";
-  /// si no, muestra "¡Publicado!" y manda al Panel de Organizador.
+  /// si no, valida, guarda el evento, muestra "¡Publicado!" y manda al Panel de Organizador.
   Future<void> _publicar() async {
     FocusScope.of(context).unfocus();
     final repo = EventoRepository();
@@ -144,8 +207,13 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
       return;
     }
 
-    // TODO: guardar el evento cuando haya backend.
-    repo.registrarPublicacion();
+    final error = _validar();
+    if (error != null) {
+      _aviso(error);
+      return;
+    }
+
+    repo.publicarEvento(_construirEvento());
     await showDialog<void>(
       context: context,
       barrierColor: Colors.black,
@@ -605,7 +673,7 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
                               decoration: const InputDecoration(
                                 border: InputBorder.none,
                                 isDense: true,
-                                hintText: 'Ej: 50.00',
+                                hintText: 'Ej: 25000',
                                 hintStyle: TextStyle(
                                     fontSize: 20, color: Color(0xFF9AA0AE)),
                               ),

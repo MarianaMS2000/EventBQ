@@ -2,26 +2,11 @@ import 'package:flutter/material.dart';
 import '../models/categoria.dart';
 import '../models/evento.dart';
 import '../models/item_agenda.dart';
-import '../models/notificacion.dart';
 import '../models/organizador.dart';
 import '../models/pagina_onboarding.dart';
-import '../models/usuario.dart';
 
 // DATOS SIMULADOS: se reemplazarán por un backend más adelante.
 // Solo los usa la carpeta "repositories".
-
-final Usuario datosUsuarioPorDefecto = Usuario(
-  nombre: 'Connor Storrie',
-  usuario: 'connor',
-  correo: 'connor@email.com',
-  foto: 'assets/images/avatar.png',
-  telefono: '+57 315 987 6543',
-  rol: 'Entrenador Deportivo',
-  miembroDesde: 'Agosto 2024',
-  eventosAsistidos: 12,
-  eventosCreados: 1,
-  rating: 4.5,
-);
 
 final List<Categoria> datosCategorias = [
   Categoria(
@@ -253,40 +238,6 @@ final List<Evento> datosEventosOrganizador = [
   ),
 ];
 
-// Entradas que compró el usuario (Mis eventos > Mis Entradas Compradas).
-// Es una lista en memoria: al anular una reserva se quita de aquí.
-final List<Evento> datosEntradasCompradas = [
-  datosEventosExplorar[2], // Exposición: Retrospectiva Acuarelas
-];
-
-// Eventos creados por el usuario (pantalla Mis eventos > Panel de Organizador)
-final List<Evento> datosEventosCreados = [
-  Evento(
-    id: 'c1',
-    titulo: 'Sushi & Nikkei para Principiantes',
-    categoria: 'Gastronomía',
-    fechaCompleta: 'Nov 02 • 06:00 PM • 2026',
-    dia: '2',
-    mes: 'Nov',
-    lugar: 'Barrio El Prado',
-    precio: '\$ 60.000',
-    imagen: 'assets/images/evento_sushi.jpg',
-    estado: 'Activo',
-  ),
-  Evento(
-    id: 'c2',
-    titulo: 'Torneo Relámpago de Vóley Playa',
-    categoria: 'Deportes',
-    fechaCompleta: 'Nov 20 • 09:00 AM • 2026',
-    dia: '20',
-    mes: 'Nov',
-    lugar: 'Caimán del Río',
-    precio: '\$ Gratis',
-    imagen: 'assets/images/evento_voley.jpg',
-    estado: 'Finalizado',
-  ),
-];
-
 // Opciones del modal de filtros
 final List<String> datosCategoriasFiltro = [
   'Salud',
@@ -299,14 +250,8 @@ final List<String> datosCategoriasFiltro = [
   'Arte',
 ];
 
-// Publicaciones del usuario en el periodo (para el límite de eventos).
-// Vive en memoria: se reinicia al cerrar la app. Con backend esto lo
-// controla el servidor.
-const int limiteEventosPeriodo = 2; // eventos permitidos en 6 meses
-final List<DateTime> datosPublicaciones = [];
-
-// ¿Compró el plan Organizador Pro? (publicación ilimitada). En memoria.
-bool datosPlanOrganizadorActivo = false;
+// Eventos que puede publicar un usuario gratis cada 6 meses (plan gratuito).
+const int limiteEventosPeriodo = 2;
 
 // Categorías al crear un evento (las del filtro + Videojuegos)
 final List<String> datosCategoriasEvento = [
@@ -319,30 +264,4 @@ final List<String> datosOpcionesFecha = [
   'Hoy',
   'Esta semana',
   'Este mes',
-];
-
-final List<Notificacion> datosNotificaciones = [
-  Notificacion(
-    id: 'n1',
-    titulo: 'Tu inscripción fue confirmada',
-    descripcion: 'Foro Internacional de Diseño de Interiores 2026',
-    tiempo: 'Hace 2 horas',
-    tipo: 'Eventos',
-  ),
-  Notificacion(
-    id: 'n2',
-    titulo: 'Recordatorio: tu evento es mañana',
-    descripcion: 'Conferencia de Innovación Tecnológica del Caribe',
-    tiempo: 'Hace 5 horas',
-    tipo: 'Eventos',
-  ),
-  Notificacion(
-    id: 'n3',
-    titulo: '¿Qué tal estuvo el evento? ¡Califícalo!',
-    descripcion: 'Festival de Música Electrónica',
-    tiempo: 'Hace 10 horas',
-    tipo: 'Eventos',
-    pideCalificacion: true,
-    idEvento: 'e1',
-  ),
 ];

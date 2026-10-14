@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import '../repositories/cambios.dart';
 import '../repositories/evento_repository.dart';
 import '../repositories/notificacion_repository.dart';
-import '../repositories/usuario_repository.dart';
 import '../theme/colores.dart';
 import '../widgets/encabezado_usuario.dart';
 import '../widgets/item_notificacion.dart';
@@ -16,10 +16,20 @@ class NotificacionesScreen extends StatefulWidget {
 
 class _NotificacionesScreenState extends State<NotificacionesScreen> {
   final _repo = NotificacionRepository();
-  final _usuarioRepo = UsuarioRepository();
+
+  @override
+  void initState() {
+    super.initState();
+    // Si hay eventos terminados sin calificar, crea el aviso "¡Califícalo!".
+    _repo.generarPendientesCalificacion();
+  }
 
   @override
   Widget build(BuildContext context) {
+    return EscuchaDatos(builder: _contenido);
+  }
+
+  Widget _contenido(BuildContext context) {
     final sinLeer = _repo.contarNoLeidas();
 
     return PantallaConBarra(
@@ -33,7 +43,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                child: EncabezadoUsuario(usuario: _usuarioRepo.obtenerUsuarioActual()),
+                child: EncabezadoUsuario(),
               ),
               const Divider(height: 1),
               // ----- Título + X para cerrar -----
@@ -72,10 +82,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
                       style: const TextStyle(fontSize: 13, color: Color(0xFF444444)),
                     ),
                     GestureDetector(
-                      onTap: () {
-                        _repo.marcarTodasLeidas();
-                        setState(() {});
-                      },
+                      onTap: _repo.marcarTodasLeidas,
                       child: const Text(
                         'Marcar como leídas',
                         style: TextStyle(
@@ -139,6 +146,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
           notificacion: lista[i],
           onCalificar: () {
             final evento = EventoRepository().obtenerEventoPorId(lista[i].idEvento);
+            if (evento == null) return; // el evento ya no existe
             Navigator.pushNamed(context, '/calificar', arguments: evento);
           },
         );

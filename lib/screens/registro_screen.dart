@@ -47,12 +47,16 @@ class _RegistroScreenState extends State<RegistroScreen> {
       _mensaje('Las contraseñas no coinciden');
       return;
     }
-    _usuarioRepo.registrar(
+    final error = _usuarioRepo.registrar(
       nombre: _nombre.text,
       usuario: _usuario.text,
       correo: _email.text,
       clave: _clave.text,
     );
+    if (error != null) {
+      _mensaje(error);
+      return;
+    }
     // Cuenta nueva: siempre empieza con los 3 onboarding.
     Navigator.pushNamedAndRemoveUntil(context, '/onboarding', (route) => false);
   }

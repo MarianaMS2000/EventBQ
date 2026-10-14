@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../repositories/cambios.dart';
 import '../repositories/evento_repository.dart';
 import '../repositories/usuario_repository.dart';
 import '../theme/colores.dart';
@@ -15,8 +16,18 @@ class PanelOrganizadorScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final eventos = EventoRepository().obtenerEventosCreados();
+    return EscuchaDatos(builder: _contenido);
+  }
+
+  Widget _contenido(BuildContext context) {
+    final repo = EventoRepository();
+    final eventos = repo.obtenerEventosCreados();
     final activos = eventos.where((e) => e.estado == 'Activo').length;
+    // Estadísticas calculadas con los eventos reales del usuario.
+    final inscritos = eventos.fold<int>(0, (s, e) => s + e.inscritos);
+    final aforo = eventos.fold<int>(0, (s, e) => s + e.cuposTotales);
+    final ocupacion = aforo == 0 ? 0 : (inscritos * 100 / aforo).round();
+    final rating = repo.ratingDeCreador(UsuarioRepository().obtenerUsuarioActual().id);
 
     return PantallaConBarra(
       indiceActual: 2, // Mis eventos
@@ -26,8 +37,7 @@ class PanelOrganizadorScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              EncabezadoUsuario(
-                  usuario: UsuarioRepository().obtenerUsuarioActual()),
+              EncabezadoUsuario(),
               const SizedBox(height: 18),
 
               // ----- Título con flecha -----
@@ -51,7 +61,7 @@ class PanelOrganizadorScreen extends StatelessWidget {
               ),
               const SizedBox(height: 22),
 
-              // ----- Estadísticas (datos simulados) -----
+              // ----- Estadísticas (calculadas con tus eventos) -----
               Row(
                 children: [
                   Expanded(
@@ -65,7 +75,7 @@ class PanelOrganizadorScreen extends StatelessWidget {
                   const SizedBox(width: 16),
                   Expanded(
                     child: TarjetaEstadistica(
-                      valor: '248',
+                      valor: '$inscritos',
                       etiqueta: 'Total\ninscritos',
                       fondo: TarjetaEstadistica.turquesa.fondo,
                       borde: TarjetaEstadistica.turquesa.borde,
@@ -78,8 +88,8 @@ class PanelOrganizadorScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: TarjetaEstadistica(
-                      valor: '89%',
-                      etiqueta: 'Asistencia\nhoy',
+                      valor: '$ocupacion%',
+                      etiqueta: 'Ocupación\ntotal',
                       fondo: TarjetaEstadistica.durazno.fondo,
                       borde: TarjetaEstadistica.durazno.borde,
                     ),
@@ -87,7 +97,7 @@ class PanelOrganizadorScreen extends StatelessWidget {
                   const SizedBox(width: 16),
                   Expanded(
                     child: TarjetaEstadistica(
-                      valor: '4.9 ★',
+                      valor: rating == 0 ? '-' : '${rating.toStringAsFixed(1)} ★',
                       etiqueta: 'Valoración',
                       fondo: TarjetaEstadistica.violeta.fondo,
                       borde: TarjetaEstadistica.violeta.borde,
@@ -107,6 +117,17 @@ class PanelOrganizadorScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
+              if (eventos.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text(
+                      'Aún no has creado eventos.\nToca el botón + para publicar el primero.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colores.grisTexto, height: 1.4),
+                    ),
+                  ),
+                ),
               ...eventos.map(
                 (e) => Padding(
                   padding: const EdgeInsets.only(bottom: 14),
