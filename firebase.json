@@ -1,0 +1,26 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "eventobq-3a405",
+          "appId": "1:9182276602:android:22c461ff63ea26cb30d243",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "eventobq-3a405",
+          "configurations": {
+            "android": "1:9182276602:android:22c461ff63ea26cb30d243",
+            "ios": "1:9182276602:ios:43cdebab1e6955d530d243",
+            "web": "1:9182276602:web:c59717f2754dbc8530d243"
+          }
+        }
+      }
+    }
+  }
+}

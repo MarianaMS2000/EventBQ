@@ -3,7 +3,6 @@ import '../repositories/cambios.dart';
 import '../repositories/evento_repository.dart';
 import '../repositories/usuario_repository.dart';
 import '../theme/colores.dart';
-import '../widgets/banner_premium.dart';
 import '../widgets/encabezado_usuario.dart';
 import '../widgets/pantalla_con_barra.dart';
 import '../widgets/tarjeta_estadistica.dart';
@@ -154,8 +153,6 @@ class PanelOrganizadorScreen extends StatelessWidget {
                   );
                 },
               ),
-              const SizedBox(height: 20),
-              const BannerPremium(),
             ],
           ),
         ),

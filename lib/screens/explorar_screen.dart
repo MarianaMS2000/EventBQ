@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/filtros_evento.dart';
 import '../repositories/evento_repository.dart';
 import '../theme/colores.dart';
-import '../widgets/banner_premium.dart';
 import '../widgets/barra_busqueda.dart';
 import '../widgets/encabezado_usuario.dart';
 import '../widgets/filtros_sheet.dart';
@@ -59,7 +58,7 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            EncabezadoUsuario(),
+            const EncabezadoUsuario(),
             const SizedBox(height: 16),
             BarraBusqueda(
               hint: 'Que te interesa',
@@ -93,8 +92,6 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
-            const BannerPremium(),
           ],
         ),
       ),
@@ -134,8 +131,8 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
         const SizedBox(width: 8),
         GestureDetector(
           onTap: () => setState(() => _filtros = FiltrosEvento()),
-          child: Row(
-            children: const [
+          child: const Row(
+            children: [
               Text(
                 'Limpiar',
                 style: TextStyle(

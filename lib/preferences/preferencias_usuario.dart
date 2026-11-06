@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import '../repositories/usuario_repository.dart';
 
 /// Clase central para SharedPreferences.
 /// Se inicializa una sola vez en main() con: await PreferenciasUsuario.init();
@@ -42,9 +43,15 @@ class PreferenciasUsuario {
 
   // ---- Onboarding (tutorial inicial, una vez por cuenta) ----
   static bool get onboardingCompletado =>
-      _prefs.getBool(clave(_kOnboarding)) ?? false;
-  static set onboardingCompletado(bool valor) =>
-      _prefs.setBool(clave(_kOnboarding), valor);
+      UsuarioRepository().onboardingCompletado ||
+      (_prefs.getBool(clave(_kOnboarding)) ?? false);
+
+  static set onboardingCompletado(bool valor) {
+    _prefs.setBool(clave(_kOnboarding), valor);
+    if (valor) {
+      UsuarioRepository().completarOnboarding();
+    }
+  }
 
   // ---- Favoritos (ids de eventos con el corazón activado) ----
   static List<String> get favoritos =>

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../preferences/preferencias_usuario.dart';
 import '../repositories/usuario_repository.dart';
 import '../theme/colores.dart';
 import '../widgets/logo_flor.dart';
@@ -18,31 +17,33 @@ class _SplashScreenState extends State<SplashScreen> {
     Future.delayed(const Duration(seconds: 2), _decidirDestino);
   }
 
-  // Usa SharedPreferences para saber a dónde ir
-  void _decidirDestino() {
+  // Decide a dónde ir según la sesión en Firebase Auth y estado de onboarding
+  Future<void> _decidirDestino() async {
+    if (!mounted) return;
+    await UsuarioRepository().inicializar();
     if (!mounted) return;
     String ruta;
-    // La sesión solo vale si la cuenta guardada todavía existe.
     if (!UsuarioRepository().haySesion) {
       ruta = '/bienvenida';
-    } else if (!PreferenciasUsuario.onboardingCompletado) {
+    } else if (!UsuarioRepository().onboardingCompletado) {
       ruta = '/onboarding';
     } else {
       ruta = '/home';
     }
+    if (!mounted) return;
     Navigator.pushReplacementNamed(context, ruta);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return const Scaffold(
       backgroundColor: Colores.azulMedio,
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
+          padding: EdgeInsets.symmetric(horizontal: 40),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: const [
+            children: [
               LogoFlor(tamano: 90),
               SizedBox(height: 8),
               Text(

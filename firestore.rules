@@ -1,0 +1,143 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Funciones auxiliares
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function eventDoc(eventoId) {
+      return get(/databases/$(database)/documents/events/$(eventoId));
+    }
+
+    function isEventCreator(eventoId) {
+      return isSignedIn() && eventDoc(eventoId).data.creadorId == request.auth.uid;
+    }
+
+    // usernames: Garantiza unicidad y permite lookup en login
+    // get puntual permitido sin auth (para login con usuario).
+    // list bloqueado para evitar enumeración.
+    match /usernames/{username} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isSignedIn() 
+        && request.resource.data.uid == request.auth.uid 
+        && request.resource.data.correo is string;
+      allow update, delete: if false;
+    }
+
+    // users: Perfiles de usuario
+    match /users/{uid} {
+      // Lectura autenticada (necesaria para ver datos públicos de organizadores)
+      allow get: if isSignedIn();
+      allow list: if false;
+      
+      // Creación al registrarse
+      allow create: if isOwner(uid)
+        && request.resource.data.usuario is string
+        && request.resource.data.correo is string
+        && request.resource.data.nombre.size() >= 3;
+
+      // Actualización solo por el dueño
+      // Dado que el pago es simulado en cliente (sin Cloud Functions en plan Spark),
+      // el usuario puede actualizar sus datos y marcar planPro si adquirió la suscripción.
+      allow update: if isOwner(uid)
+        && request.resource.data.usuario == resource.data.usuario; // el username no se puede cambiar de id
+
+      allow delete: if false;
+
+      // Subcolección favoritos
+      match /favoritos/{eventoId} {
+        allow read, write: if isOwner(uid);
+      }
+
+      // Subcolección notificaciones
+      match /notificaciones/{notifId} {
+        allow read, delete: if isOwner(uid);
+        
+        // El dueño solo puede actualizar el estado de lectura
+        allow update: if isOwner(uid) 
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leida']);
+
+        // Cualquier usuario autenticado puede generar una notificación a otro usuario
+        // (por ejemplo: confirmación de inscripción, evento reprogramado, etc.)
+        // con campos y tamaños estrictamente validados.
+        allow create: if isSignedIn()
+          && request.resource.data.keys().hasAll(['titulo', 'descripcion', 'tipo', 'leida', 'pideCalificacion', 'idEvento'])
+          && request.resource.data.titulo is string && request.resource.data.titulo.size() <= 100
+          && request.resource.data.descripcion is string && request.resource.data.descripcion.size() <= 500
+          && request.resource.data.tipo in ['Eventos', 'Organizador']
+          && request.resource.data.leida == false
+          && request.resource.data.pideCalificacion is bool
+          && request.resource.data.idEvento is string;
+      }
+    }
+
+    // events: Eventos
+    match /events/{eventoId} {
+      allow read: if isSignedIn();
+      
+      allow create: if isSignedIn() 
+        && (request.resource.data.creadorId == request.auth.uid || request.resource.data.creadorId == '')
+        && request.resource.data.cuposTotales >= 0
+        && request.resource.data.titulo is string
+        && request.resource.data.titulo.size() > 0;
+
+      allow delete: if isSignedIn() && resource.data.creadorId == request.auth.uid;
+
+      allow update: if isSignedIn() && (
+        // Caso A: El creador del evento puede actualizar todos sus campos
+        resource.data.creadorId == request.auth.uid
+        ||
+        // Caso B: Excepción controlada para asistentes/visitantes:
+        // Solo pueden modificar cuposDisponibles, visualizaciones, ratingSuma y ratingCantidad
+        (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['cuposDisponibles', 'visualizaciones', 'ratingSuma', 'ratingCantidad'])
+          && request.resource.data.cuposDisponibles >= 0 
+          && request.resource.data.cuposDisponibles <= resource.data.cuposTotales
+          && (request.resource.data.visualizaciones == resource.data.visualizaciones + 1 
+              || request.resource.data.visualizaciones == resource.data.visualizaciones)
+          && request.resource.data.creadorId == resource.data.creadorId
+          && request.resource.data.cuposTotales == resource.data.cuposTotales
+        )
+      );
+
+      // Subcolección inscripciones: doc ID es el uid del asistente
+      match /inscripciones/{uid} {
+        allow read: if isOwner(uid) || isEventCreator(eventoId);
+
+        // Solo el propio asistente puede crear su inscripción inicial
+        allow create: if isOwner(uid)
+          && request.resource.data.uid == uid
+          && request.resource.data.estado == 'Activa'
+          && request.resource.data.codigo is string
+          && request.resource.data.codigo.size() >= 16;
+
+        // Modificación de inscripción:
+        // 1. El asistente puede anular su propia inscripción activa
+        // 2. El organizador del evento puede hacer check-in (marcar 'Asistio')
+        allow update: if (
+          (isOwner(uid) && request.resource.data.estado == 'Anulada' && resource.data.estado == 'Activa')
+          ||
+          (isEventCreator(eventoId) && request.resource.data.estado == 'Asistio')
+        );
+
+        allow delete: if false;
+      }
+
+      // Subcolección calificaciones
+      match /calificaciones/{uid} {
+        allow read: if isSignedIn();
+        allow write: if isOwner(uid) 
+          && request.resource.data.estrellas >= 1 
+          && request.resource.data.estrellas <= 5;
+      }
+    }
+  }
+}

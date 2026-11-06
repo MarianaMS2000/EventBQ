@@ -12,7 +12,14 @@ class EncabezadoUsuario extends StatelessWidget {
   /// Si no se pasa, usa el usuario con la sesión abierta (se actualiza solo).
   final Usuario? usuario;
 
-  const EncabezadoUsuario({super.key, this.usuario});
+  /// En la pantalla de Notificaciones se oculta (ya estás ahí).
+  final bool mostrarCampana;
+
+  const EncabezadoUsuario({
+    super.key,
+    this.usuario,
+    this.mostrarCampana = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +60,7 @@ class EncabezadoUsuario extends StatelessWidget {
             ],
           ),
         ),
+        if (mostrarCampana)
         GestureDetector(
           onTap: () => Navigator.pushNamed(context, '/notificaciones'),
           child: Container(

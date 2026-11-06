@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../preferences/preferencias_usuario.dart';
 import '../repositories/usuario_repository.dart';
 import '../theme/colores.dart';
 import '../widgets/boton_principal.dart';
@@ -18,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _usuario = TextEditingController();
   final _clave = TextEditingController();
   final _usuarioRepo = UsuarioRepository();
+  bool _cargando = false;
 
   @override
   void dispose() {
@@ -26,16 +26,22 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _ingresar() {
+  Future<void> _ingresar() async {
+    if (_cargando) return;
     FocusScope.of(context).unfocus();
-    final error = _usuarioRepo.iniciarSesion(_usuario.text, _clave.text);
+
+    setState(() => _cargando = true);
+    final error = await _usuarioRepo.iniciarSesion(_usuario.text, _clave.text);
+    if (!mounted) return;
+    setState(() => _cargando = false);
+
     if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error)),
       );
       return;
     }
-    final ruta = PreferenciasUsuario.onboardingCompletado ? '/home' : '/onboarding';
+    final ruta = _usuarioRepo.onboardingCompletado ? '/home' : '/onboarding';
     Navigator.pushNamedAndRemoveUntil(context, ruta, (route) => false);
   }
 
@@ -61,6 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
               BotonPrincipal(
                 texto: 'Ingresa',
                 colorFondo: Colores.fondo,
+                cargando: _cargando,
                 onPressed: _ingresar,
               ),
               const SizedBox(height: 12),

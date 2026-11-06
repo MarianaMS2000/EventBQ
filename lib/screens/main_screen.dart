@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../preferences/preferencias_usuario.dart';
 import '../repositories/cambios.dart';
+import '../repositories/evento_repository.dart';
 import '../theme/colores.dart';
 import '../widgets/barra_navegacion.dart';
 import 'explorar_screen.dart';
@@ -22,7 +24,7 @@ class _MainScreenState extends State<MainScreen> {
   late int _indice;
 
   // Inicio y Perfil se reconstruyen cada vez que se entra a la pestaña,
-  // para que muestren los favoritos actualizados.
+  // para que muestren la información actualizada (ej. favoritos en Perfil).
   int _versionInicio = 0;
   int _versionPerfil = 0;
 
@@ -41,6 +43,7 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _indice = widget.indiceInicial;
+    EventoRepository().iniciar(PreferenciasUsuario.usuarioActual);
   }
 
   void _seleccionar(int i) {

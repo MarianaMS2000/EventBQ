@@ -3,7 +3,6 @@ import '../models/evento.dart';
 import '../repositories/cambios.dart';
 import '../repositories/evento_repository.dart';
 import '../theme/colores.dart';
-import '../widgets/banner_premium.dart';
 import '../widgets/dialogo_anular_inscripcion.dart';
 import '../widgets/dialogo_politica_reembolso.dart';
 import '../widgets/encabezado_usuario.dart';
@@ -56,7 +55,7 @@ class _PanelAsistenteScreenState extends State<PanelAsistenteScreen> {
       child: SafeArea(
         child: LayoutBuilder(
           builder: (context, c) {
-            // El banner baja hasta el fondo cuando hay poco contenido.
+            // Con poco contenido, el mensaje "sin eventos" queda centrado.
             final minAlto = c.maxHeight > 138 ? c.maxHeight - 138 : 0.0;
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 130),
@@ -121,9 +120,7 @@ class _PanelAsistenteScreenState extends State<PanelAsistenteScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 14),
                       ],
-                      const BannerPremium(),
                     ],
                   ),
                 ),

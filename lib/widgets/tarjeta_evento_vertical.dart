@@ -4,17 +4,14 @@ import '../theme/colores.dart';
 import 'imagen_asset.dart';
 
 /// Tarjeta grande de "Eventos Top" (pantalla Inicio).
+/// El favorito se marca solo desde el detalle del evento.
 class TarjetaEventoVertical extends StatelessWidget {
   final Evento evento;
-  final bool esFavorito;
-  final VoidCallback onFavorito;
   final VoidCallback onReservar;
 
   const TarjetaEventoVertical({
     super.key,
     required this.evento,
-    required this.esFavorito,
-    required this.onFavorito,
     required this.onReservar,
   });
 
@@ -30,7 +27,7 @@ class TarjetaEventoVertical extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // ----- Mitad superior: imagen + badge + corazón -----
+          // ----- Mitad superior: imagen + badge -----
           SizedBox(
             height: 160,
             child: Stack(
@@ -56,26 +53,6 @@ class TarjetaEventoVertical extends StatelessWidget {
                         color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 10,
-                  right: 12,
-                  child: GestureDetector(
-                    onTap: onFavorito,
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: esFavorito ? Colores.azulOscuro : Colores.azulMedio,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        esFavorito ? Icons.favorite : Icons.favorite_border,
-                        color: Colors.white,
-                        size: 20,
                       ),
                     ),
                   ),

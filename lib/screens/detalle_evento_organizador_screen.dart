@@ -4,7 +4,6 @@ import '../repositories/cambios.dart';
 import '../repositories/evento_repository.dart';
 import '../theme/colores.dart';
 import '../utils/formato.dart';
-import '../widgets/banner_premium.dart';
 import '../widgets/dialogo_cancelar_evento.dart';
 import '../widgets/dialogo_reprogramar_evento.dart';
 import '../widgets/encabezado_usuario.dart';
@@ -365,8 +364,6 @@ class _DetalleEventoOrganizadorScreenState
                   onTap: () => _eliminar(evento),
                 ),
               ],
-              const SizedBox(height: 24),
-              const BannerPremium(),
             ],
           ),
         ),

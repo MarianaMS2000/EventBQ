@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'item_agenda.dart';
 
 class Evento {
@@ -26,12 +27,17 @@ class Evento {
   List<String> incluye;
   List<ItemAgenda> agenda;
 
-  // ---- Datos de los eventos creados por usuarios (se guardan en el celular) ----
+  // ---- Datos de los eventos creados por usuarios ----
   String creadorId; // id del usuario que lo creó ('' = evento de ejemplo)
   String fechaIso; // fecha real "2026-12-24" (para ordenar y saber si ya pasó)
   double precioValor; // precio numérico (0 = gratis), para calcular el recaudo
   int visualizaciones;
-  List<String> inscripciones; // fecha-hora (ISO) de cada inscripción
+  List<String> inscripciones; // solo compatibilidad en memoria (en Firestore es subcolección)
+
+  // Calificación agregada
+  double ratingSuma;
+  int ratingCantidad;
+  DateTime? creadoEn;
 
   Evento({
     required this.id,
@@ -58,6 +64,9 @@ class Evento {
     this.precioValor = 0,
     this.visualizaciones = 0,
     List<String>? inscripciones,
+    this.ratingSuma = 0.0,
+    this.ratingCantidad = 0,
+    this.creadoEn,
   }) : inscripciones = inscripciones ?? [];
 
   List<String> get _partes => fechaCompleta.split(' • ');
@@ -71,6 +80,10 @@ class Evento {
 
   /// Personas inscritas (solo tiene sentido en eventos con cupos).
   int get inscritos => cuposTotales - cuposDisponibles;
+
+  /// Promedio de valoración
+  double get ratingPromedio =>
+      ratingCantidad > 0 ? ratingSuma / ratingCantidad : 0.0;
 
   /// Fecha real del evento (null si es un evento de ejemplo sin fecha real).
   DateTime? get fecha => fechaIso.isEmpty ? null : DateTime.tryParse(fechaIso);
@@ -100,10 +113,24 @@ class Evento {
         'precioValor': precioValor,
         'visualizaciones': visualizaciones,
         'inscripciones': inscripciones,
+        'ratingSuma': ratingSuma,
+        'ratingCantidad': ratingCantidad,
       };
 
-  factory Evento.fromJson(Map<String, dynamic> j) => Evento(
-        id: j['id'] as String,
+  Map<String, dynamic> toFirestore() {
+    final map = toJson();
+    map.remove('inscripciones'); // Se maneja en subcolección inscripciones/{uid}
+    if (fecha != null) {
+      map['fecha'] = Timestamp.fromDate(fecha!);
+    }
+    map['creadoEn'] = creadoEn != null
+        ? Timestamp.fromDate(creadoEn!)
+        : FieldValue.serverTimestamp();
+    return map;
+  }
+
+  factory Evento.fromJson(Map<String, dynamic> j, {String? id}) => Evento(
+        id: id ?? (j['id'] as String? ?? ''),
         titulo: j['titulo'] as String? ?? '',
         categoria: j['categoria'] as String? ?? '',
         fechaCompleta: j['fechaCompleta'] as String? ?? '',
@@ -128,6 +155,19 @@ class Evento {
         fechaIso: j['fechaIso'] as String? ?? '',
         precioValor: (j['precioValor'] as num? ?? 0).toDouble(),
         visualizaciones: j['visualizaciones'] as int? ?? 0,
-        inscripciones: List<String>.from(j['inscripciones'] as List? ?? const []),
+        inscripciones:
+            List<String>.from(j['inscripciones'] as List? ?? const []),
+        ratingSuma: (j['ratingSuma'] as num? ?? 0).toDouble(),
+        ratingCantidad: j['ratingCantidad'] as int? ?? 0,
+        creadoEn: j['creadoEn'] is Timestamp
+            ? (j['creadoEn'] as Timestamp).toDate()
+            : (j['creadoEn'] is String
+                ? DateTime.tryParse(j['creadoEn'] as String)
+                : null),
       );
+
+  factory Evento.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final j = doc.data() ?? {};
+    return Evento.fromJson(j, id: doc.id);
+  }
 }

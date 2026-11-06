@@ -20,6 +20,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final _clave = TextEditingController();
   final _confirmar = TextEditingController();
   final _usuarioRepo = UsuarioRepository();
+  bool _cargando = false;
 
   @override
   void dispose() {
@@ -35,7 +36,9 @@ class _RegistroScreenState extends State<RegistroScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(texto)));
   }
 
-  void _crearCuenta() {
+  Future<void> _crearCuenta() async {
+    if (_cargando) return;
+
     if (_nombre.text.trim().isEmpty ||
         _usuario.text.trim().isEmpty ||
         _email.text.trim().isEmpty ||
@@ -47,12 +50,20 @@ class _RegistroScreenState extends State<RegistroScreen> {
       _mensaje('Las contraseñas no coinciden');
       return;
     }
-    final error = _usuarioRepo.registrar(
+
+    FocusScope.of(context).unfocus();
+    setState(() => _cargando = true);
+
+    final error = await _usuarioRepo.registrar(
       nombre: _nombre.text,
       usuario: _usuario.text,
       correo: _email.text,
       clave: _clave.text,
     );
+
+    if (!mounted) return;
+    setState(() => _cargando = false);
+
     if (error != null) {
       _mensaje(error);
       return;
@@ -97,6 +108,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
               BotonPrincipal(
                 texto: 'Crear cuenta',
                 colorFondo: Colores.fondo,
+                cargando: _cargando,
                 onPressed: _crearCuenta,
               ),
               const SizedBox(height: 12),

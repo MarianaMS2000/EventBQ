@@ -37,7 +37,7 @@ class _InicioScreenState extends State<InicioScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            EncabezadoUsuario(),
+            const EncabezadoUsuario(),
             const SizedBox(height: 16),
             const BarraBusqueda(hint: 'Un evento de salchipapa?'),
             const SizedBox(height: 20),
@@ -68,11 +68,6 @@ class _InicioScreenState extends State<InicioScreen> {
                 padding: const EdgeInsets.only(bottom: 16),
                 child: TarjetaEventoVertical(
                   evento: e,
-                  esFavorito: _eventoRepo.esFavorito(e.id),
-                  onFavorito: () async {
-                    await _eventoRepo.alternarFavorito(e.id);
-                    setState(() {});
-                  },
                   onReservar: () => Navigator.pushNamed(
                     context,
                     '/detalle-evento',

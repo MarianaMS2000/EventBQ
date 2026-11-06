@@ -6,7 +6,6 @@ import '../repositories/evento_repository.dart';
 import '../repositories/organizador_repository.dart';
 import '../theme/colores.dart';
 import '../widgets/agenda_timeline.dart';
-import '../widgets/banner_premium.dart';
 import '../widgets/dialogo_confirmar_asistencia.dart';
 import '../widgets/encabezado_usuario.dart';
 import '../widgets/imagen_asset.dart';
@@ -66,7 +65,8 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
   }
 
   Widget _contenido(BuildContext context) {
-    final e = _obtenerEvento();
+    final inicial = _obtenerEvento();
+    final e = _eventoRepo.obtenerEventoPorId(inicial.id) ?? inicial;
     final favorito = _eventoRepo.esFavorito(e.id);
     final organizador = OrganizadorRepository().obtenerParaEvento(e);
 
@@ -79,8 +79,8 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
                 child: EncabezadoUsuario(),
               ),
               // ----- Imagen hero -----
@@ -271,10 +271,10 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
                     const SizedBox(height: 26),
                     Center(child: _botonEntrada(e)),
                     const SizedBox(height: 14),
-                    Row(
+                    const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         Padding(
                           padding: EdgeInsets.only(top: 2),
                           child: Icon(Icons.lock_outline, size: 15, color: Colores.grisTexto),
@@ -289,8 +289,6 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
-                    const BannerPremium(),
                   ],
                 ),
               ),

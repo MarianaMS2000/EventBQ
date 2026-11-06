@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../preferences/preferencias_usuario.dart';
 import '../repositories/onboarding_repository.dart';
+import '../repositories/usuario_repository.dart';
 import '../theme/colores.dart';
 import '../widgets/imagen_asset.dart';
 
@@ -29,8 +30,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         curve: Curves.easeInOut,
       );
     } else {
-      // Guardamos que el tutorial ya se vio
+      // Guardamos que el tutorial ya se vio en Firestore y localmente
       PreferenciasUsuario.onboardingCompletado = true;
+      UsuarioRepository().completarOnboarding();
       Navigator.pushReplacementNamed(context, '/home');
     }
   }

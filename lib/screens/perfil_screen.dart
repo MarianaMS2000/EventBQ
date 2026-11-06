@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../repositories/cambios.dart';
 import '../models/evento.dart';
-import '../navegacion.dart';
 import '../repositories/evento_repository.dart';
 import '../repositories/usuario_repository.dart';
 import '../theme/colores.dart';
@@ -31,6 +30,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
   final _telefono = TextEditingController();
   final _rol = TextEditingController();
   bool _editando = false;
+  bool _guardando = false;
 
   @override
   void dispose() {
@@ -48,13 +48,19 @@ class _PerfilScreenState extends State<PerfilScreen> {
     setState(() => _editando = true);
   }
 
-  void _guardar() {
+  Future<void> _guardar() async {
+    if (_guardando) return;
     FocusScope.of(context).unfocus();
-    final error = _usuarioRepo.actualizarPerfil(
+    setState(() => _guardando = true);
+
+    final error = await _usuarioRepo.actualizarPerfil(
       correo: _correo.text,
       telefono: _telefono.text,
       rol: _rol.text,
     );
+    if (!mounted) return;
+    setState(() => _guardando = false);
+
     if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error)),
@@ -71,11 +77,11 @@ class _PerfilScreenState extends State<PerfilScreen> {
       final foto = await ImagePicker().pickImage(
         source: ImageSource.gallery,
         maxWidth: 400,
-        imageQuality: 70,
+        imageQuality: 65,
       );
       if (foto == null || !mounted) return; // canceló la galería
       final bytes = await foto.readAsBytes();
-      _usuarioRepo.actualizarFoto(ImagenAsset.bytesATexto(bytes));
+      await _usuarioRepo.actualizarFoto(ImagenAsset.bytesATexto(bytes));
       if (!mounted) return;
       mostrarAvisoExito(context, '¡Foto de perfil actualizada!');
     } catch (_) {
@@ -111,14 +117,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 child: Column(
                   children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        onPressed: () => irAPestana(context, 0),
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      ),
-                    ),
+                    const SizedBox(height: 12),
                     _avatar(u.foto),
                     const SizedBox(height: 12),
                     Text(
@@ -164,10 +163,12 @@ class _PerfilScreenState extends State<PerfilScreen> {
                       const SizedBox(height: 16),
                       // Botón de Cerrar Sesión (Ubicado debajo de Información Personal)
                       OutlinedButton(
-                        onPressed: () {
-                          _usuarioRepo.cerrarSesion();
-                          Navigator.pushNamedAndRemoveUntil(
-                              context, '/bienvenida', (r) => false);
+                        onPressed: () async {
+                          final nav = Navigator.of(context);
+                          await _usuarioRepo.cerrarSesion();
+                          if (!mounted) return;
+                          nav.pushNamedAndRemoveUntil(
+                              '/bienvenida', (r) => false);
                         },
                         style: OutlinedButton.styleFrom(
                           backgroundColor: Colors.white,
@@ -321,12 +322,23 @@ class _PerfilScreenState extends State<PerfilScreen> {
                 ),
               ),
               GestureDetector(
-                onTap: _editando ? _guardar : _empezarEdicion,
-                child: Icon(
-                  _editando ? Icons.save_outlined : Icons.edit_outlined,
-                  color: Colors.black,
-                  size: 22,
-                ),
+                onTap: _guardando
+                    ? null
+                    : (_editando ? _guardar : _empezarEdicion),
+                child: _guardando
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colores.azulOscuro,
+                        ),
+                      )
+                    : Icon(
+                        _editando ? Icons.save_outlined : Icons.edit_outlined,
+                        color: Colors.black,
+                        size: 22,
+                      ),
               ),
             ],
           ),

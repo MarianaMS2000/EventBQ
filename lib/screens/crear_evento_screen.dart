@@ -43,6 +43,7 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
   final _picker = ImagePicker();
   int _aforo = 120;
   bool _gratis = false;
+  bool _publicando = false;
 
   @override
   void dispose() {
@@ -213,15 +214,24 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
       return;
     }
 
-    repo.publicarEvento(_construirEvento());
-    await showDialog<void>(
-      context: context,
-      barrierColor: Colors.black,
-      barrierDismissible: false,
-      builder: (_) => const DialogoEventoPublicado(),
-    );
-    if (!mounted) return;
-    _irAlPanel();
+    setState(() => _publicando = true);
+    try {
+      await repo.publicarEvento(_construirEvento());
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierColor: Colors.black,
+        barrierDismissible: false,
+        builder: (_) => const DialogoEventoPublicado(),
+      );
+      if (!mounted) return;
+      _irAlPanel();
+    } catch (_) {
+      if (!mounted) return;
+      _aviso('Error al publicar el evento');
+    } finally {
+      if (mounted) setState(() => _publicando = false);
+    }
   }
 
   // ---------- piezas de diseño ----------
@@ -693,7 +703,7 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
                   width: 310,
                   height: 66,
                   child: ElevatedButton(
-                    onPressed: _publicar,
+                    onPressed: _publicando ? null : _publicar,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colores.azulOscuro,
                       foregroundColor: Colors.white,
@@ -701,10 +711,20 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(22)),
                     ),
-                    child: const Text(
-                      'Publicar evento',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
-                    ),
+                    child: _publicando
+                        ? const SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 3,
+                            ),
+                          )
+                        : const Text(
+                            'Publicar evento',
+                            style: TextStyle(
+                                fontSize: 24, fontWeight: FontWeight.w600),
+                          ),
                   ),
                 ),
               ),

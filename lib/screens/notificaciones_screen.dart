@@ -43,7 +43,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                child: EncabezadoUsuario(),
+                child: EncabezadoUsuario(mostrarCampana: false),
               ),
               const Divider(height: 1),
               // ----- Título + X para cerrar -----

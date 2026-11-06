@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "9182276602",
+    "project_id": "eventobq-3a405",
+    "storage_bucket": "eventobq-3a405.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:9182276602:android:22c461ff63ea26cb30d243",
+        "android_client_info": {
+          "package_name": "com.example.eventbq"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCSjgvaIkMB9tln_Zi9MRS4_4ZykcMzrKk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

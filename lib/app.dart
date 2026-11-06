@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'navegacion.dart';
 import 'screens/bienvenida_screen.dart';
 import 'screens/calificar_screen.dart';
 import 'screens/detalle_evento_screen.dart';

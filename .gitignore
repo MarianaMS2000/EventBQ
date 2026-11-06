@@ -1,7 +1,24 @@
+# Flutter / Dart
 .dart_tool/
 .packages
 build/
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# Android
+.gradle/
+**/android/local.properties
+**/android/captures/
+**/android/app/build/
+
+# iOS
+**/ios/Flutter/ephemeral/
+**/ios/Pods/
+**/ios/.symlinks/
+
+# Editores y sistema operativo
 .idea/
 *.iml
+.vscode/
+.DS_Store
+Thumbs.db
