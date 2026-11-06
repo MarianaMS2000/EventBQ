@@ -37,11 +37,13 @@ class EventoRepository {
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _eventosSub;
 
   // Inscripciones del usuario activo: eventoId -> Inscripcion
-  final Map<String, Inscripcion> _mapaInscripciones = {};
+  Map<String, Inscripcion>? _mapaInscripciones = {};
+  Map<String, Inscripcion> get _inscripciones => _mapaInscripciones ??= {};
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _inscripcionesSub;
 
   // Favoritos en Firestore: Set de IDs de eventos guardados
-  final Set<String> _favoritosIds = {};
+  Set<String>? _favoritosIds = {};
+  Set<String> get _favoritos => _favoritosIds ??= <String>{};
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _favoritosSub;
 
   bool _inicializado = false;
@@ -92,13 +94,13 @@ class EventoRepository {
           .where('uid', isEqualTo: uid)
           .snapshots()
           .listen((snap) {
-        _mapaInscripciones.clear();
+        _inscripciones.clear();
         _entradas.clear();
 
         for (final doc in snap.docs) {
           final insc = Inscripcion.fromFirestore(doc);
           if (insc.esActiva) {
-            _mapaInscripciones[insc.eventoId] = insc;
+            _inscripciones[insc.eventoId] = insc;
             _entradas.add(insc.eventoId);
           }
         }
@@ -115,9 +117,9 @@ class EventoRepository {
           .collection('favoritos')
           .snapshots()
           .listen((snap) {
-        _favoritosIds.clear();
+        _favoritos.clear();
         for (final doc in snap.docs) {
-          _favoritosIds.add(doc.id);
+          _favoritos.add(doc.id);
         }
         notificarCambios();
       }, onError: (_) {});
@@ -133,8 +135,8 @@ class EventoRepository {
     _inscripcionesSub = null;
     _favoritosSub = null;
     _inicializado = false;
-    _mapaInscripciones.clear();
-    _favoritosIds.clear();
+    _inscripciones.clear();
+    _favoritos.clear();
   }
 
   /// Sube los eventos de muestra si la base de datos está vacía.
@@ -325,7 +327,7 @@ class EventoRepository {
   List<Evento> obtenerFavoritos() {
     _asegurarDatosLocales();
     final resultado = <Evento>[];
-    for (final id in _favoritosIds) {
+    for (final id in _favoritos) {
       final e = obtenerEventoPorId(id);
       if (e != null) resultado.add(e);
     }
@@ -344,7 +346,7 @@ class EventoRepository {
   List<String> obtenerOpcionesFecha() => datosOpcionesFecha;
 
   bool esFavorito(String idEvento) {
-    if (_favoritosIds.contains(idEvento)) return true;
+    if (_favoritos.contains(idEvento)) return true;
     return PreferenciasUsuario.esFavorito(idEvento);
   }
 
@@ -353,7 +355,7 @@ class EventoRepository {
     final yaEs = esFavorito(idEvento);
 
     if (yaEs) {
-      _favoritosIds.remove(idEvento);
+      _favoritos.remove(idEvento);
       if (uid.isNotEmpty) {
         try {
           await _firestore
@@ -365,7 +367,7 @@ class EventoRepository {
         } catch (_) {}
       }
     } else {
-      _favoritosIds.add(idEvento);
+      _favoritos.add(idEvento);
       if (uid.isNotEmpty) {
         try {
           await _firestore
@@ -387,8 +389,8 @@ class EventoRepository {
   List<Evento> obtenerEntradasCompradas() {
     _asegurarDatosLocales();
     final lista = <Evento>[];
-    final ids = _mapaInscripciones.isNotEmpty
-        ? _mapaInscripciones.keys.toList()
+    final ids = _inscripciones.isNotEmpty
+        ? _inscripciones.keys.toList()
         : _entradas;
 
     for (final id in ids) {
@@ -402,15 +404,15 @@ class EventoRepository {
 
   bool estaInscrito(String idEvento) {
     _asegurarDatosLocales();
-    if (_mapaInscripciones.containsKey(idEvento)) {
-      return _mapaInscripciones[idEvento]!.esActiva;
+    if (_inscripciones.containsKey(idEvento)) {
+      return _inscripciones[idEvento]!.esActiva;
     }
     return _entradas.contains(idEvento);
   }
 
   /// Retorna la inscripción activa asociada a un evento (con su código criptográfico).
   Inscripcion? obtenerInscripcion(String idEvento) {
-    return _mapaInscripciones[idEvento];
+    return _inscripciones[idEvento];
   }
 
   List<String> usuariosInscritos(String idEvento) {
@@ -549,7 +551,7 @@ class EventoRepository {
         precioPagado: evento.precio,
         codigo: _generarCodigoSeguro(),
       );
-      _mapaInscripciones[evento.id] = inscLocal;
+      _inscripciones[evento.id] = inscLocal;
       if (!_entradas.contains(evento.id)) {
         _entradas.add(evento.id);
         _guardarEntradas();
@@ -618,7 +620,7 @@ class EventoRepository {
       }
 
       _entradas.remove(idEvento);
-      _mapaInscripciones.remove(idEvento);
+      _inscripciones.remove(idEvento);
       _guardarEntradas();
       notificarCambios();
       return null;
