@@ -78,6 +78,11 @@ service cloud.firestore {
       }
     }
 
+    // Collection group para consultar inscripciones
+    match /{path=**}/inscripciones/{asistenteUid} {
+      allow read: if isSignedIn() && (request.auth.uid == asistenteUid || resource.data.uid == request.auth.uid);
+    }
+
     // events: Eventos
     match /events/{eventoId} {
       allow read: if isSignedIn();

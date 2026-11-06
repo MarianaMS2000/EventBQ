@@ -38,8 +38,8 @@ class _PanelAsistenteScreenState extends State<PanelAsistenteScreen> {
     );
     if (!mounted) return;
 
-    // Se quita de la lista y se guarda: la entrada ya no vuelve a aparecer.
-    _eventoRepo.anularEntrada(evento.id);
+    // Se quita de la lista y se libera el cupo en Firestore con transacción
+    await _eventoRepo.anularEntrada(evento.id);
   }
 
   @override
@@ -65,7 +65,7 @@ class _PanelAsistenteScreenState extends State<PanelAsistenteScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      EncabezadoUsuario(),
+                      const EncabezadoUsuario(),
                       const SizedBox(height: 18),
                       Row(
                         children: [

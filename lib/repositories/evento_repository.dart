@@ -1,21 +1,24 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart' show TimeOfDay;
 import '../data/datos_simulados.dart';
 import '../models/evento.dart';
 import '../models/filtros_evento.dart';
+import '../models/inscripcion.dart';
 import '../preferences/preferencias_usuario.dart';
 import '../utils/formato.dart';
 import 'cambios.dart';
 import 'notificacion_repository.dart';
 import 'usuario_repository.dart';
 
-/// Las pantallas piden y guardan los eventos aquí.
+/// Las pantallas piden y guardan los eventos e inscripciones aquí.
 ///
-/// Los eventos se sincronizan en vivo con Cloud Firestore (colección 'events').
-/// Mantiene un caché en memoria (_publicados y _mapaEventos) alimentado por
-/// snapshots en tiempo real. Las lecturas son síncronas desde el caché.
+/// Los datos se sincronizan en tiempo real con Cloud Firestore.
+/// Mantiene cachés en memoria alimentados por listeners para lecturas síncronas.
+/// Las operaciones que modifican cupos o inscripciones se ejecutan mediante
+/// transacciones atómicas (runTransaction).
 class EventoRepository {
   static final EventoRepository _instancia = EventoRepository._();
   factory EventoRepository() => _instancia;
@@ -32,12 +35,21 @@ class EventoRepository {
   final List<Evento> _publicados = [];
   final Map<String, Evento> _mapaEventos = {};
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _eventosSub;
+
+  // Inscripciones del usuario activo: eventoId -> Inscripcion
+  final Map<String, Inscripcion> _mapaInscripciones = {};
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _inscripcionesSub;
+
+  // Favoritos en Firestore: Set de IDs de eventos guardados
+  final Set<String> _favoritosIds = {};
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _favoritosSub;
+
   bool _inicializado = false;
 
   // Calificaciones: cada una es {evento, usuario, estrellas}.
   final List<Map<String, dynamic>> _calificaciones = [];
 
-  // Datos del usuario con sesión abierta
+  // Datos locales de respaldo
   String _usuarioCargado = '\u0000';
   List<String> _entradas = []; // ids de los eventos a los que se inscribió
   List<DateTime> _publicaciones = []; // fechas en que publicó eventos
@@ -45,15 +57,16 @@ class EventoRepository {
 
   // ---------- ciclo de vida y sincronización ----------
 
-  /// Inicia el listener en tiempo real de la colección 'events' en Firestore.
+  /// Inicia los listeners en tiempo real de Firestore para eventos, inscripciones y favoritos.
   Future<void> iniciar(String uid) async {
     _asegurarDatosLocales();
-    if (_inicializado) return;
+    if (_inicializado && _usuarioCargado == uid) return;
     _inicializado = true;
 
-    // Sembrar eventos iniciales si la base de datos está vacía
+    // Sembrar eventos iniciales si la colección está vacía
     await sembrarDatosIniciales();
 
+    // 1. Escucha en tiempo real de la colección 'events'
     await _eventosSub?.cancel();
     _eventosSub = _firestore.collection('events').snapshots().listen((snap) {
       _publicados.clear();
@@ -68,20 +81,65 @@ class EventoRepository {
 
       notificarCambios();
     }, onError: (_) {});
+
+    // 2. Escucha de inscripciones del usuario mediante Collection Group
+    if (uid.isNotEmpty) {
+      await _inscripcionesSub?.cancel();
+      _inscripcionesSub = _firestore
+          .collectionGroup('inscripciones')
+          .where('uid', isEqualTo: uid)
+          .snapshots()
+          .listen((snap) {
+        _mapaInscripciones.clear();
+        _entradas.clear();
+
+        for (final doc in snap.docs) {
+          final insc = Inscripcion.fromFirestore(doc);
+          if (insc.esActiva) {
+            _mapaInscripciones[insc.eventoId] = insc;
+            _entradas.add(insc.eventoId);
+          }
+        }
+
+        _guardarEntradas();
+        notificarCambios();
+      }, onError: (_) {});
+
+      // 3. Escucha de favoritos en users/{uid}/favoritos
+      await _favoritosSub?.cancel();
+      _favoritosSub = _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('favoritos')
+          .snapshots()
+          .listen((snap) {
+        _favoritosIds.clear();
+        for (final doc in snap.docs) {
+          _favoritosIds.add(doc.id);
+        }
+        notificarCambios();
+      }, onError: (_) {});
+    }
   }
 
-  /// Cancela la suscripción a Firestore
+  /// Cancela todas las suscripciones al cerrar sesión
   Future<void> cancelar() async {
     await _eventosSub?.cancel();
+    await _inscripcionesSub?.cancel();
+    await _favoritosSub?.cancel();
     _eventosSub = null;
+    _inscripcionesSub = null;
+    _favoritosSub = null;
     _inicializado = false;
+    _mapaInscripciones.clear();
+    _favoritosIds.clear();
   }
 
-  /// Sube los eventos de muestra de datos_simulados a Firestore si la colección está vacía.
+  /// Sube los eventos de muestra si la base de datos está vacía.
   Future<void> sembrarDatosIniciales() async {
     try {
       final snap = await _firestore.collection('events').limit(1).get();
-      if (snap.docs.isNotEmpty) return; // ya hay datos
+      if (snap.docs.isNotEmpty) return;
 
       final batch = _firestore.batch();
       final todos = [
@@ -141,7 +199,6 @@ class EventoRepository {
     );
   }
 
-  /// Un evento "Activo" cuya fecha ya pasó pasa a "Finalizado".
   void _actualizarEstadoSiPaso(Evento e) {
     final hoy = soloFecha(DateTime.now());
     final f = e.fecha;
@@ -154,23 +211,17 @@ class EventoRepository {
 
   // ---------- consultas ----------
 
-  /// Eventos de la pantalla Inicio: los más recientes/destacados Activos.
   List<Evento> obtenerEventosTop() {
     _asegurarDatosLocales();
     final activos = _publicados.where(_esVisible).toList();
-    if (activos.isEmpty) {
-      return datosEventosTop; // Respaldo sin parpadeo si aún no llegan snapshots
-    }
+    if (activos.isEmpty) return datosEventosTop;
     return activos.reversed.take(6).toList();
   }
 
-  /// Eventos de Explorar: listado completo en vivo de eventos Activos.
   List<Evento> obtenerEventosExplorar() {
     _asegurarDatosLocales();
     final activos = _publicados.where(_esVisible).toList();
-    if (activos.isEmpty) {
-      return datosEventosExplorar;
-    }
+    if (activos.isEmpty) return datosEventosExplorar;
     return activos.reversed.toList();
   }
 
@@ -184,13 +235,11 @@ class EventoRepository {
     return suyos.isNotEmpty ? suyos : datosEventosOrganizador;
   }
 
-  /// Eventos que creó un usuario concreto.
   List<Evento> obtenerEventosDeCreador(String idUsuario) {
     _asegurarDatosLocales();
     return _publicados.where((e) => e.creadorId == idUsuario).toList();
   }
 
-  /// Eventos que creó el usuario con sesión (Mis eventos > Mis Eventos Creados).
   List<Evento> obtenerEventosCreados() {
     _asegurarDatosLocales();
     return obtenerEventosDeCreador(_usuarioId).reversed.toList();
@@ -212,7 +261,6 @@ class EventoRepository {
     return null;
   }
 
-  /// Busca por texto y aplica los filtros de categoría, fecha y precio en memoria.
   List<Evento> buscarEventos(String texto, {FiltrosEvento? filtros}) {
     final t = texto.toLowerCase().trim();
     final hoy = soloFecha(DateTime.now());
@@ -247,21 +295,21 @@ class EventoRepository {
     }).toList();
   }
 
-  /// Eventos con el corazón activado (sin repetir).
+  // ---------- favoritos (users/{uid}/favoritos) ----------
+
   List<Evento> obtenerFavoritos() {
     _asegurarDatosLocales();
-    final vistos = <String>{};
     final resultado = <Evento>[];
-    final todos = [
-      ..._publicados,
-      ...datosEventosTop,
-      ...datosEventosExplorar,
-      ...datosEventosOrganizador,
-    ];
-    for (final e in todos) {
-      if (vistos.contains(e.id)) continue;
-      vistos.add(e.id);
-      if (PreferenciasUsuario.esFavorito(e.id)) resultado.add(e);
+    for (final id in _favoritosIds) {
+      final e = obtenerEventoPorId(id);
+      if (e != null) resultado.add(e);
+    }
+    // Compatibilidad si aún no carga el snapshot remoto
+    if (resultado.isEmpty) {
+      for (final id in PreferenciasUsuario.favoritos) {
+        final e = obtenerEventoPorId(id);
+        if (e != null && !resultado.contains(e)) resultado.add(e);
+      }
     }
     return resultado;
   }
@@ -270,32 +318,76 @@ class EventoRepository {
 
   List<String> obtenerOpcionesFecha() => datosOpcionesFecha;
 
-  bool esFavorito(String idEvento) => PreferenciasUsuario.esFavorito(idEvento);
+  bool esFavorito(String idEvento) {
+    if (_favoritosIds.contains(idEvento)) return true;
+    return PreferenciasUsuario.esFavorito(idEvento);
+  }
 
   Future<void> alternarFavorito(String idEvento) async {
+    final uid = _usuarioId;
+    final yaEs = esFavorito(idEvento);
+
+    if (yaEs) {
+      _favoritosIds.remove(idEvento);
+      if (uid.isNotEmpty) {
+        try {
+          await _firestore
+              .collection('users')
+              .doc(uid)
+              .collection('favoritos')
+              .doc(idEvento)
+              .delete();
+        } catch (_) {}
+      }
+    } else {
+      _favoritosIds.add(idEvento);
+      if (uid.isNotEmpty) {
+        try {
+          await _firestore
+              .collection('users')
+              .doc(uid)
+              .collection('favoritos')
+              .doc(idEvento)
+              .set({'creadoEn': FieldValue.serverTimestamp()});
+        } catch (_) {}
+      }
+    }
     await PreferenciasUsuario.alternarFavorito(idEvento);
     notificarCambios();
   }
 
-  // ---------- entradas (inscripciones) ----------
+  // ---------- entradas (inscripciones atómicas) ----------
 
-  /// Entradas que compró el usuario (Mis Entradas Compradas).
+  /// Devuelve los eventos a los que el usuario tiene inscripción activa.
   List<Evento> obtenerEntradasCompradas() {
     _asegurarDatosLocales();
     final lista = <Evento>[];
-    for (final id in _entradas) {
+    final ids = _mapaInscripciones.isNotEmpty
+        ? _mapaInscripciones.keys.toList()
+        : _entradas;
+
+    for (final id in ids) {
       final e = obtenerEventoPorId(id);
-      if (e != null) lista.add(e);
+      if (e != null && !lista.contains(e)) {
+        lista.add(e);
+      }
     }
     return lista;
   }
 
   bool estaInscrito(String idEvento) {
     _asegurarDatosLocales();
+    if (_mapaInscripciones.containsKey(idEvento)) {
+      return _mapaInscripciones[idEvento]!.esActiva;
+    }
     return _entradas.contains(idEvento);
   }
 
-  /// Ids de usuarios inscritos a un evento.
+  /// Retorna la inscripción activa asociada a un evento (con su código criptográfico).
+  Inscripcion? obtenerInscripcion(String idEvento) {
+    return _mapaInscripciones[idEvento];
+  }
+
   List<String> usuariosInscritos(String idEvento) {
     _asegurarDatosLocales();
     final ids = <String>[];
@@ -307,59 +399,201 @@ class EventoRepository {
     return ids;
   }
 
-  /// Inscribe al usuario.
-  String? agregarEntrada(Evento evento) {
-    _asegurarDatosLocales();
-    final e = obtenerEventoPorId(evento.id) ?? evento;
-    if (_usuarioId.isEmpty) return 'Inicia sesión para reservar';
-    if (_entradas.contains(e.id)) return 'Ya estás inscrito a este evento';
-    if (e.creadorId == _usuarioId) {
-      return 'No puedes inscribirte a tu propio evento';
-    }
-    if (e.estado != 'Activo') return 'Este evento ya no está disponible';
-    if (e.cuposDisponibles <= 0) return 'No quedan cupos disponibles';
-
-    _entradas.add(e.id);
-    _guardarEntradas();
-    e.cuposDisponibles--;
-    e.inscripciones.add(DateTime.now().toIso8601String());
-
-    if (e.creadorId.isNotEmpty) {
-      final yo = UsuarioRepository().obtenerUsuarioActual();
-      NotificacionRepository().agregarA(
-        e.creadorId,
-        titulo: 'Nueva inscripción',
-        descripcion: '${yo.nombre} se inscribió a "${e.titulo}"',
-        tipo: 'Organizador',
-        idEvento: e.id,
-      );
-    }
-    NotificacionRepository().agregarA(
-      _usuarioId,
-      titulo: 'Tu inscripción fue confirmada',
-      descripcion: e.titulo,
-      idEvento: e.id,
-    );
-    notificarCambios();
-    return null;
+  /// Genera un código criptográficamente seguro de 24 caracteres alfanuméricos.
+  String _generarCodigoSeguro() {
+    final rnd = Random.secure();
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    return List.generate(24, (_) => chars[rnd.nextInt(chars.length)]).join();
   }
 
-  /// Anula la entrada del usuario.
-  void anularEntrada(String idEvento) {
+  /// Transacción atómica de inscripción (runTransaction).
+  ///
+  /// Valida que haya sesión, que el evento esté Activo, que no sea propio,
+  /// que no esté ya inscrito y que cuposDisponibles > 0.
+  /// Crea events/{id}/inscripciones/{uid} con su código y resta 1 a cuposDisponibles.
+  Future<String?> agregarEntrada(Evento evento) async {
     _asegurarDatosLocales();
-    if (!_entradas.remove(idEvento)) return;
-    _guardarEntradas();
-    final e = obtenerEventoPorId(idEvento);
-    if (e != null) {
-      if (e.cuposDisponibles < e.cuposTotales) e.cuposDisponibles++;
-      if (e.inscripciones.isNotEmpty) e.inscripciones.removeLast();
+    final uid = _usuarioId;
+    if (uid.isEmpty) return 'Inicia sesión para reservar';
+
+    if (evento.creadorId == uid) {
+      return 'No puedes inscribirte a tu propio evento';
     }
-    notificarCambios();
+
+    final eventoRef = _firestore.collection('events').doc(evento.id);
+    final inscripcionRef = eventoRef.collection('inscripciones').doc(uid);
+
+    try {
+      final errorTransaccion =
+          await _firestore.runTransaction<String?>((tx) async {
+        final evSnap = await tx.get(eventoRef);
+        if (!evSnap.exists) {
+          return 'Este evento ya no está disponible';
+        }
+
+        final evData = evSnap.data()!;
+        final estado = evData['estado'] as String? ?? 'Activo';
+        if (estado != 'Activo') {
+          return 'Este evento ya no está disponible';
+        }
+
+        final cuposDisponibles = evData['cuposDisponibles'] as int? ?? 0;
+        if (cuposDisponibles <= 0) {
+          return 'No quedan cupos disponibles';
+        }
+
+        final inscSnap = await tx.get(inscripcionRef);
+        if (inscSnap.exists) {
+          final inscData = inscSnap.data()!;
+          final estadoInsc = inscData['estado'] as String? ?? '';
+          if (estadoInsc == 'Activa') {
+            return 'Ya estás inscrito a este evento';
+          }
+        }
+
+        final yo = UsuarioRepository().obtenerUsuarioActual();
+        final codigo = _generarCodigoSeguro();
+
+        // 1. Guardar documento en subcolección inscripciones/{uid}
+        tx.set(inscripcionRef, {
+          'uid': uid,
+          'eventoId': evento.id,
+          'nombre': yo.nombre.isNotEmpty ? yo.nombre : 'Asistente',
+          'creadaEn': FieldValue.serverTimestamp(),
+          'precioPagado': evento.precio,
+          'estado': 'Activa',
+          'codigo': codigo,
+          'checkInEn': null,
+        });
+
+        // 2. Descontar cupo en el evento
+        tx.update(eventoRef, {
+          'cuposDisponibles': cuposDisponibles - 1,
+        });
+
+        // 3. Notificación para el asistente
+        final notifAsistenteRef = _firestore
+            .collection('users')
+            .doc(uid)
+            .collection('notificaciones')
+            .doc();
+        tx.set(notifAsistenteRef, {
+          'titulo': 'Tu inscripción fue confirmada',
+          'descripcion': evento.titulo,
+          'tipo': 'Eventos',
+          'leida': false,
+          'pideCalificacion': false,
+          'idEvento': evento.id,
+        });
+
+        // 4. Notificación para el organizador
+        final creadorId = evData['creadorId'] as String? ?? '';
+        if (creadorId.isNotEmpty && creadorId != uid) {
+          final notifOrgRef = _firestore
+              .collection('users')
+              .doc(creadorId)
+              .collection('notificaciones')
+              .doc();
+          tx.set(notifOrgRef, {
+            'titulo': 'Nueva inscripción',
+            'descripcion': '${yo.nombre} se inscribió a "${evento.titulo}"',
+            'tipo': 'Organizador',
+            'leida': false,
+            'pideCalificacion': false,
+            'idEvento': evento.id,
+          });
+        }
+
+        return null;
+      });
+
+      if (errorTransaccion != null) {
+        return errorTransaccion;
+      }
+
+      // Actualizar caché local
+      final yo = UsuarioRepository().obtenerUsuarioActual();
+      final inscLocal = Inscripcion(
+        uid: uid,
+        eventoId: evento.id,
+        nombre: yo.nombre,
+        creadaEn: DateTime.now(),
+        precioPagado: evento.precio,
+        codigo: _generarCodigoSeguro(),
+      );
+      _mapaInscripciones[evento.id] = inscLocal;
+      if (!_entradas.contains(evento.id)) {
+        _entradas.add(evento.id);
+        _guardarEntradas();
+      }
+
+      notificarCambios();
+      return null;
+    } catch (e) {
+      return 'Error al procesar la inscripción. Intenta de nuevo';
+    }
+  }
+
+  /// Transacción atómica para anular la inscripción.
+  ///
+  /// Marca la inscripción como 'Anulada' (preservando historial)
+  /// y libera el cupo (+1 a cuposDisponibles sin superar cuposTotales).
+  Future<String?> anularEntrada(String idEvento) async {
+    _asegurarDatosLocales();
+    final uid = _usuarioId;
+    if (uid.isEmpty) return 'No hay una sesión activa';
+
+    final eventoRef = _firestore.collection('events').doc(idEvento);
+    final inscripcionRef = eventoRef.collection('inscripciones').doc(uid);
+
+    try {
+      final error = await _firestore.runTransaction<String?>((tx) async {
+        final evSnap = await tx.get(eventoRef);
+        final inscSnap = await tx.get(inscripcionRef);
+
+        if (!inscSnap.exists) {
+          return 'No se encontró la inscripción para este evento';
+        }
+
+        final inscData = inscSnap.data()!;
+        if (inscData['estado'] == 'Anulada') {
+          return 'Esta inscripción ya fue anulada';
+        }
+
+        // Marcar estado Anulada
+        tx.update(inscripcionRef, {
+          'estado': 'Anulada',
+        });
+
+        // Incrementar cuposDisponibles sin exceder cuposTotales
+        if (evSnap.exists) {
+          final evData = evSnap.data()!;
+          final cuposDisp = evData['cuposDisponibles'] as int? ?? 0;
+          final cuposTot = evData['cuposTotales'] as int? ?? 0;
+          if (cuposDisp < cuposTot) {
+            tx.update(eventoRef, {
+              'cuposDisponibles': cuposDisp + 1,
+            });
+          }
+        }
+
+        return null;
+      });
+
+      if (error != null) return error;
+
+      _entradas.remove(idEvento);
+      _mapaInscripciones.remove(idEvento);
+      _guardarEntradas();
+      notificarCambios();
+      return null;
+    } catch (_) {
+      return 'Error al anular la inscripción';
+    }
   }
 
   // ---------- crear / modificar / eliminar eventos ----------
 
-  /// Guarda un evento nuevo en Firestore y cuenta la publicación.
   Future<void> publicarEvento(Evento evento) async {
     _asegurarDatosLocales();
     final uid = _usuarioId;
@@ -371,7 +605,6 @@ class EventoRepository {
     evento.ratingCantidad = 0;
     evento.creadoEn = DateTime.now();
 
-    // Guardar en Firestore
     await _firestore.collection('events').doc(evento.id).set(evento.toFirestore());
 
     _publicados.insert(0, evento);
@@ -393,7 +626,6 @@ class EventoRepository {
     }
   }
 
-  /// El organizador cancela su evento.
   void cancelarEvento(String idEvento) {
     _asegurarDatosLocales();
     final ev = obtenerEventoPorId(idEvento);
@@ -408,7 +640,6 @@ class EventoRepository {
     notificarCambios();
   }
 
-  /// El organizador cambia fecha y horas.
   void reprogramarEvento(
     String idEvento,
     DateTime fecha,
@@ -429,7 +660,6 @@ class EventoRepository {
     notificarCambios();
   }
 
-  /// Borra un evento creado por el usuario.
   void eliminarEvento(String idEvento) {
     _asegurarDatosLocales();
     _publicados.removeWhere((p) => p.id == idEvento);
@@ -440,7 +670,6 @@ class EventoRepository {
     notificarCambios();
   }
 
-  /// Suma una visualización (cuando alguien distinto al creador abre el detalle).
   Future<void> registrarVisualizacion(Evento evento) async {
     _asegurarDatosLocales();
     final uid = _usuarioId;
@@ -453,7 +682,7 @@ class EventoRepository {
     } catch (_) {}
   }
 
-  // ---------- límite de eventos publicados (plan gratuito) ----------
+  // ---------- límites y calificaciones ----------
 
   List<DateTime> _publicacionesVigentes() {
     final ahora = DateTime.now();
@@ -492,8 +721,6 @@ class EventoRepository {
     final primera = vigentes.isEmpty ? DateTime.now() : vigentes.first;
     return DateTime(primera.year, primera.month + 6, primera.day);
   }
-
-  // ---------- calificaciones ----------
 
   bool yaCalifico(String idEvento) {
     _asegurarDatosLocales();

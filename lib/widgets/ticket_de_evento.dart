@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/evento.dart';
+import '../repositories/evento_repository.dart';
 import '../theme/colores.dart';
 import 'imagen_asset.dart';
 import 'ticket_entrada.dart';
@@ -15,6 +16,8 @@ class TicketDeEvento extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final e = evento;
+    final insc = EventoRepository().obtenerInscripcion(e.id);
+    final codigo = insc?.codigo.isNotEmpty == true ? insc!.codigo : e.id;
     return TicketEntrada(
       alturaSuperior: 225,
       parteSuperior: Padding(
@@ -58,8 +61,20 @@ class TicketDeEvento extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            QrPlaceholder(semilla: e.id),
-            const SizedBox(height: 12),
+            QrPlaceholder(semilla: codigo),
+            const SizedBox(height: 8),
+            if (insc != null && insc.codigo.isNotEmpty)
+              Text(
+                'CÓDIGO: ${insc.codigo}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 10,
+                  letterSpacing: 1.2,
+                  fontWeight: FontWeight.bold,
+                  color: Colores.azulOscuro,
+                ),
+              ),
+            const SizedBox(height: 8),
             const Text(
               'Válido para 1 persona',
               style: TextStyle(fontSize: 13, color: Color(0xFF4A4A55)),

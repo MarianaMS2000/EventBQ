@@ -46,8 +46,9 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
     }
     final confirmado = await mostrarDialogoConfirmarAsistencia(context, evento);
     if (!confirmado || !mounted) return;
-    // Se guarda la inscripción: aparece en Mis Entradas Compradas.
-    final error = _eventoRepo.agregarEntrada(evento);
+    // Se guarda la inscripción atómica en Firestore con runTransaction
+    final error = await _eventoRepo.agregarEntrada(evento);
+    if (!mounted) return;
     if (error != null) {
       _aviso(error);
       return;
