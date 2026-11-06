@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/evento.dart';
+import '../models/inscripcion.dart';
 import '../repositories/cambios.dart';
 import '../repositories/evento_repository.dart';
 import '../theme/colores.dart';
@@ -33,12 +34,22 @@ class DetalleEventoOrganizadorScreen extends StatefulWidget {
 class _DetalleEventoOrganizadorScreenState
     extends State<DetalleEventoOrganizadorScreen> {
   final _repo = EventoRepository();
+  List<Inscripcion> _inscripcionesReales = [];
+  String _eventoCargadoId = '';
 
   Evento? _evento() {
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is Evento) return args;
     final creados = _repo.obtenerEventosCreados();
     return creados.isEmpty ? null : creados.first;
+  }
+
+  void _cargarInscripcionesSiCambio(String eventoId) {
+    if (_eventoCargadoId == eventoId) return;
+    _eventoCargadoId = eventoId;
+    _repo.obtenerInscripcionesDeEvento(eventoId).then((lista) {
+      if (mounted) setState(() => _inscripcionesReales = lista);
+    });
   }
 
   bool _esEventoPropio(Evento e) => e.creadorId.isNotEmpty;
@@ -56,7 +67,12 @@ class _DetalleEventoOrganizadorScreenState
       ),
     );
     if (confirmo == true && mounted) {
-      _repo.cancelarEvento(evento.id);
+      await _repo.cancelarEvento(evento.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Evento cancelado')),
+        );
+      }
     }
   }
 
@@ -71,10 +87,12 @@ class _DetalleEventoOrganizadorScreenState
       ),
     );
     if (r == null || !mounted) return;
-    _repo.reprogramarEvento(evento.id, r.fecha, r.inicio, r.cierre);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Evento reprogramado')),
-    );
+    await _repo.reprogramarEvento(evento.id, r.fecha, r.inicio, r.cierre);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Evento reprogramado')),
+      );
+    }
   }
 
   Future<void> _eliminar(Evento evento) async {
@@ -106,8 +124,8 @@ class _DetalleEventoOrganizadorScreenState
       ),
     );
     if (confirmo != true || !mounted) return;
-    _repo.eliminarEvento(evento.id);
-    Navigator.pop(context);
+    await _repo.eliminarEvento(evento.id);
+    if (mounted) Navigator.pop(context);
   }
 
   /// Inscripciones de los últimos 7 días (para el gráfico de barras).
@@ -118,10 +136,17 @@ class _DetalleEventoOrganizadorScreenState
     final etiquetas = <String>[];
     for (int i = 6; i >= 0; i--) {
       final dia = hoy.subtract(Duration(days: i));
-      final n = e.inscripciones.where((iso) {
-        final d = DateTime.tryParse(iso);
-        return d != null && soloFecha(d) == dia;
-      }).length;
+      int n = 0;
+      if (_inscripcionesReales.isNotEmpty) {
+        n = _inscripcionesReales.where((insc) {
+          return soloFecha(insc.creadaEn) == dia;
+        }).length;
+      } else {
+        n = e.inscripciones.where((iso) {
+          final d = DateTime.tryParse(iso);
+          return d != null && soloFecha(d) == dia;
+        }).length;
+      }
       valores.add(n);
       etiquetas.add(dias[dia.weekday - 1]);
     }
@@ -148,6 +173,8 @@ class _DetalleEventoOrganizadorScreenState
         ),
       );
     }
+
+    _cargarInscripcionesSiCambio(evento.id);
 
     final estado = evento.estado;
     final cancelado = estado == 'Cancelado';

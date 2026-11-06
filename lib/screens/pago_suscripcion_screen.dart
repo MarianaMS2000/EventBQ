@@ -51,14 +51,15 @@ class _PagoSuscripcionScreenState extends State<PagoSuscripcionScreen> {
     return buffer.toString();
   }
 
-  void _pagar() {
+  Future<void> _pagar() async {
     if (!_formKey.currentState!.validate()) return;
 
     // Pago correcto -> pantalla de suscripción activa
     // Si pagó el plan Organizador Pro, ya puede publicar sin límite.
     if (widget.nombrePlan == 'Organizador Pro') {
-      EventoRepository().activarPlanOrganizador();
+      await EventoRepository().activarPlanOrganizador();
     }
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(

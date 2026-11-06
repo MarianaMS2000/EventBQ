@@ -103,6 +103,20 @@ class UsuarioRepository {
     notificarCambios();
   }
 
+  /// Activa el plan Pro en Firestore y en caché
+  Future<void> activarPlanPro() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) {
+      try {
+        await _firestore.collection('users').doc(uid).update({
+          'planPro': true,
+        });
+        _usuarioActual?.planPro = true;
+      } catch (_) {}
+    }
+    notificarCambios();
+  }
+
   /// Busca un usuario por su UID. Si no está en caché, lo consulta en segundo plano.
   Usuario? obtenerPorId(String id) {
     if (id.isEmpty) return null;

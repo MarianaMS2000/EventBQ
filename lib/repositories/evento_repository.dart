@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart' show TimeOfDay;
+import 'package:flutter/material.dart' show TimeOfDay, debugPrint;
 import '../data/datos_simulados.dart';
 import '../models/evento.dart';
 import '../models/filtros_evento.dart';
@@ -75,8 +75,10 @@ class EventoRepository {
       for (final doc in snap.docs) {
         final e = Evento.fromFirestore(doc);
         _actualizarEstadoSiPaso(e);
-        _publicados.add(e);
-        _mapaEventos[e.id] = e;
+        if (!_mapaEventos.containsKey(e.id)) {
+          _publicados.add(e);
+          _mapaEventos[e.id] = e;
+        }
       }
 
       notificarCambios();
@@ -213,14 +215,26 @@ class EventoRepository {
 
   List<Evento> obtenerEventosTop() {
     _asegurarDatosLocales();
-    final activos = _publicados.where(_esVisible).toList();
+    final vistos = <String>{};
+    final activos = <Evento>[];
+    for (final e in _publicados) {
+      if (_esVisible(e) && vistos.add(e.id)) {
+        activos.add(e);
+      }
+    }
     if (activos.isEmpty) return datosEventosTop;
     return activos.reversed.take(6).toList();
   }
 
   List<Evento> obtenerEventosExplorar() {
     _asegurarDatosLocales();
-    final activos = _publicados.where(_esVisible).toList();
+    final vistos = <String>{};
+    final activos = <Evento>[];
+    for (final e in _publicados) {
+      if (_esVisible(e) && vistos.add(e.id)) {
+        activos.add(e);
+      }
+    }
     if (activos.isEmpty) return datosEventosExplorar;
     return activos.reversed.toList();
   }
@@ -229,15 +243,26 @@ class EventoRepository {
 
   List<Evento> obtenerEventosDeOrganizador() {
     _asegurarDatosLocales();
-    final suyos = _publicados
-        .where((e) => e.creadorId == '' || e.creadorId == _usuarioId)
-        .toList();
+    final vistos = <String>{};
+    final suyos = <Evento>[];
+    for (final e in _publicados) {
+      if ((e.creadorId == '' || e.creadorId == _usuarioId) && vistos.add(e.id)) {
+        suyos.add(e);
+      }
+    }
     return suyos.isNotEmpty ? suyos : datosEventosOrganizador;
   }
 
   List<Evento> obtenerEventosDeCreador(String idUsuario) {
     _asegurarDatosLocales();
-    return _publicados.where((e) => e.creadorId == idUsuario).toList();
+    final vistos = <String>{};
+    final resultado = <Evento>[];
+    for (final e in _publicados) {
+      if (e.creadorId == idUsuario && vistos.add(e.id)) {
+        resultado.add(e);
+      }
+    }
+    return resultado;
   }
 
   List<Evento> obtenerEventosCreados() {
@@ -408,17 +433,13 @@ class EventoRepository {
 
   /// Transacción atómica de inscripción (runTransaction).
   ///
-  /// Valida que haya sesión, que el evento esté Activo, que no sea propio,
+  /// Valida que haya sesión, que el evento esté Activo,
   /// que no esté ya inscrito y que cuposDisponibles > 0.
   /// Crea events/{id}/inscripciones/{uid} con su código y resta 1 a cuposDisponibles.
   Future<String?> agregarEntrada(Evento evento) async {
     _asegurarDatosLocales();
     final uid = _usuarioId;
     if (uid.isEmpty) return 'Inicia sesión para reservar';
-
-    if (evento.creadorId == uid) {
-      return 'No puedes inscribirte a tu propio evento';
-    }
 
     final eventoRef = _firestore.collection('events').doc(evento.id);
     final inscripcionRef = eventoRef.collection('inscripciones').doc(uid);
@@ -484,9 +505,10 @@ class EventoRepository {
           'leida': false,
           'pideCalificacion': false,
           'idEvento': evento.id,
+          'creadaEn': FieldValue.serverTimestamp(),
         });
 
-        // 4. Notificación para el organizador
+        // 4. Notificación para el organizador (si no es el mismo)
         final creadorId = evData['creadorId'] as String? ?? '';
         if (creadorId.isNotEmpty && creadorId != uid) {
           final notifOrgRef = _firestore
@@ -501,6 +523,7 @@ class EventoRepository {
             'leida': false,
             'pideCalificacion': false,
             'idEvento': evento.id,
+            'creadaEn': FieldValue.serverTimestamp(),
           });
         }
 
@@ -511,7 +534,12 @@ class EventoRepository {
         return errorTransaccion;
       }
 
-      // Actualizar caché local
+      // Actualizar de inmediato en caché local y memoria
+      evento.cuposDisponibles = (evento.cuposDisponibles - 1).clamp(0, evento.cuposTotales);
+      if (_mapaEventos.containsKey(evento.id)) {
+        _mapaEventos[evento.id]!.cuposDisponibles = evento.cuposDisponibles;
+      }
+
       final yo = UsuarioRepository().obtenerUsuarioActual();
       final inscLocal = Inscripcion(
         uid: uid,
@@ -530,7 +558,8 @@ class EventoRepository {
       notificarCambios();
       return null;
     } catch (e) {
-      return 'Error al procesar la inscripción. Intenta de nuevo';
+      debugPrint('Error en agregarEntrada: $e');
+      return 'Error al procesar la inscripción: $e';
     }
   }
 
@@ -582,12 +611,19 @@ class EventoRepository {
 
       if (error != null) return error;
 
+      // Actualizar de inmediato en caché local
+      final ev = obtenerEventoPorId(idEvento);
+      if (ev != null) {
+        ev.cuposDisponibles = (ev.cuposDisponibles + 1).clamp(0, ev.cuposTotales);
+      }
+
       _entradas.remove(idEvento);
       _mapaInscripciones.remove(idEvento);
       _guardarEntradas();
       notificarCambios();
       return null;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error en anularEntrada: $e');
       return 'Error al anular la inscripción';
     }
   }
@@ -607,67 +643,134 @@ class EventoRepository {
 
     await _firestore.collection('events').doc(evento.id).set(evento.toFirestore());
 
-    _publicados.insert(0, evento);
+    // Asegurar que no se inserte duplicado
     _mapaEventos[evento.id] = evento;
+    _publicados.removeWhere((p) => p.id == evento.id);
+    _publicados.insert(0, evento);
 
     _publicaciones.add(DateTime.now());
     _guardarPublicaciones();
     notificarCambios();
   }
 
-  void _avisarInscritos(Evento e, String titulo, String descripcion) {
-    for (final id in usuariosInscritos(e.id)) {
-      NotificacionRepository().agregarA(
-        id,
-        titulo: titulo,
-        descripcion: descripcion,
-        idEvento: e.id,
-      );
+  /// Notifica a todos los inscritos activos mediante WriteBatch (hasta 500 ops)
+  Future<void> _notificarInscritosActivos(
+    String idEvento, {
+    required String titulo,
+    required String descripcion,
+  }) async {
+    try {
+      final snap = await _firestore
+          .collection('events')
+          .doc(idEvento)
+          .collection('inscripciones')
+          .where('estado', isEqualTo: 'Activa')
+          .get();
+
+      if (snap.docs.isEmpty) return;
+
+      final batch = _firestore.batch();
+      for (final doc in snap.docs) {
+        final asistenteUid = doc.id;
+        final notifRef = _firestore
+            .collection('users')
+            .doc(asistenteUid)
+            .collection('notificaciones')
+            .doc();
+        batch.set(notifRef, {
+          'titulo': titulo,
+          'descripcion': descripcion,
+          'tipo': 'Eventos',
+          'leida': false,
+          'pideCalificacion': false,
+          'idEvento': idEvento,
+          'creadaEn': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Error al notificar inscritos: $e');
     }
   }
 
-  void cancelarEvento(String idEvento) {
+  /// Cancela el evento en Firestore y notifica a todos los asistentes activos.
+  Future<void> cancelarEvento(String idEvento) async {
     _asegurarDatosLocales();
     final ev = obtenerEventoPorId(idEvento);
     if (ev == null) return;
     ev.estado = 'Cancelado';
-    _firestore.collection('events').doc(idEvento).update({'estado': 'Cancelado'});
-    _avisarInscritos(
-      ev,
-      'Evento cancelado',
-      '"${ev.titulo}" fue cancelado por el organizador',
-    );
+
+    try {
+      await _firestore.collection('events').doc(idEvento).update({'estado': 'Cancelado'});
+      await _notificarInscritosActivos(
+        idEvento,
+        titulo: 'Evento cancelado',
+        descripcion: '"${ev.titulo}" fue cancelado por el organizador',
+      );
+    } catch (e) {
+      debugPrint('Error en cancelarEvento: $e');
+    }
+
     notificarCambios();
   }
 
-  void reprogramarEvento(
+  /// Reprograma el evento en Firestore y notifica a todos los inscritos activos.
+  Future<void> reprogramarEvento(
     String idEvento,
     DateTime fecha,
     TimeOfDay inicio,
     TimeOfDay cierre,
-  ) {
+  ) async {
     _asegurarDatosLocales();
     final ev = obtenerEventoPorId(idEvento);
     if (ev == null) return;
     aplicarFechaAEvento(ev, fecha, inicio, cierre);
     if (ev.estado == 'Finalizado') ev.estado = 'Activo';
-    _firestore.collection('events').doc(idEvento).update(ev.toFirestore());
-    _avisarInscritos(
-      ev,
-      'Evento reprogramado',
-      '"${ev.titulo}" ahora es el ${ev.fechaLarga}, ${ev.horario}',
-    );
+
+    try {
+      await _firestore.collection('events').doc(idEvento).update(ev.toFirestore());
+      await _notificarInscritosActivos(
+        idEvento,
+        titulo: 'Evento reprogramado',
+        descripcion: '"${ev.titulo}" ahora es el ${ev.fechaLarga}, ${ev.horario}',
+      );
+    } catch (e) {
+      debugPrint('Error en reprogramarEvento: $e');
+    }
+
     notificarCambios();
   }
 
-  void eliminarEvento(String idEvento) {
+  /// Elimina el evento de Firestore y limpia el caché.
+  Future<void> eliminarEvento(String idEvento) async {
     _asegurarDatosLocales();
     _publicados.removeWhere((p) => p.id == idEvento);
     _mapaEventos.remove(idEvento);
     _entradas.remove(idEvento);
     _guardarEntradas();
-    _firestore.collection('events').doc(idEvento).delete();
+
+    try {
+      await _firestore.collection('events').doc(idEvento).delete();
+    } catch (e) {
+      debugPrint('Error en eliminarEvento: $e');
+    }
+
     notificarCambios();
+  }
+
+  /// Obtiene la lista de inscripciones para un evento concreto (para el organizador)
+  Future<List<Inscripcion>> obtenerInscripcionesDeEvento(String idEvento) async {
+    try {
+      final snap = await _firestore
+          .collection('events')
+          .doc(idEvento)
+          .collection('inscripciones')
+          .get();
+      return snap.docs.map(Inscripcion.fromFirestore).toList();
+    } catch (e) {
+      debugPrint('Error en obtenerInscripcionesDeEvento: $e');
+      return [];
+    }
   }
 
   Future<void> registrarVisualizacion(Evento evento) async {
@@ -694,10 +797,17 @@ class EventoRepository {
 
   int get eventosPublicados {
     _asegurarDatosLocales();
-    return _publicacionesVigentes().length;
+    final vigentesLocales = _publicacionesVigentes().length;
+    final hace180Dias = DateTime.now().subtract(const Duration(days: 180));
+    final creadosRecientes = obtenerEventosCreados().where((e) {
+      return e.creadoEn != null && e.creadoEn!.isAfter(hace180Dias);
+    }).length;
+    return creadosRecientes > vigentesLocales ? creadosRecientes : vigentesLocales;
   }
 
   bool get planOrganizadorActivo {
+    final u = UsuarioRepository().obtenerUsuarioActual();
+    if (u.planPro) return true;
     _asegurarDatosLocales();
     return _planPro;
   }
@@ -705,13 +815,14 @@ class EventoRepository {
   bool get limiteAlcanzado =>
       !planOrganizadorActivo && eventosPublicados >= limiteEventosPeriodo;
 
-  void activarPlanOrganizador() {
+  Future<void> activarPlanOrganizador() async {
     _asegurarDatosLocales();
     _planPro = true;
-    PreferenciasUsuario.guardarBool(
+    await PreferenciasUsuario.guardarBool(
       PreferenciasUsuario.claveDe(_kPlanPro, _usuarioCargado),
       true,
     );
+    await UsuarioRepository().activarPlanPro();
     notificarCambios();
   }
 
