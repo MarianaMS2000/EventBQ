@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../preferences/preferencias_usuario.dart';
 import '../repositories/cambios.dart';
 import '../repositories/evento_repository.dart';
+import '../repositories/notificacion_repository.dart';
 import '../theme/colores.dart';
 import '../widgets/barra_navegacion.dart';
 import 'explorar_screen.dart';
@@ -43,7 +44,9 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _indice = widget.indiceInicial;
-    EventoRepository().iniciar(PreferenciasUsuario.usuarioActual);
+    final uid = PreferenciasUsuario.usuarioActual;
+    EventoRepository().iniciar(uid);
+    NotificacionRepository().iniciar(uid);
   }
 
   void _seleccionar(int i) {

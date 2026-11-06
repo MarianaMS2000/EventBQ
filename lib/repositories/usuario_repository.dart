@@ -5,6 +5,7 @@ import '../models/usuario.dart';
 import '../preferences/preferencias_usuario.dart';
 import '../utils/formato.dart';
 import 'cambios.dart';
+import 'evento_repository.dart';
 import 'notificacion_repository.dart';
 
 /// Repositorio de usuarios conectado a Firebase (Auth + Firestore).
@@ -425,6 +426,8 @@ class UsuarioRepository {
   /// Cierra sesión en Firebase Auth, cancela listeners y limpia estado.
   Future<void> cerrarSesion() async {
     await _cancelarEscucha();
+    await EventoRepository().cancelar();
+    await NotificacionRepository().cancelar();
     await _auth.signOut();
     notificarCambios();
   }

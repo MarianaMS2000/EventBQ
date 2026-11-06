@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/notificacion.dart';
+import '../repositories/notificacion_repository.dart';
 import '../theme/colores.dart';
 
 /// Tarjeta de una notificación.
@@ -12,7 +13,13 @@ class ItemNotificacion extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final n = notificacion;
-    return Container(
+    return GestureDetector(
+      onTap: () {
+        if (!n.leida) {
+          NotificacionRepository().marcarLeida(n.id);
+        }
+      },
+      child: Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
       decoration: BoxDecoration(
@@ -87,6 +94,6 @@ class ItemNotificacion extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ),);
   }
 }

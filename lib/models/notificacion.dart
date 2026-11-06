@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Notificacion {
   String id;
   String titulo;
@@ -41,8 +43,18 @@ class Notificacion {
         'idEvento': idEvento,
       };
 
+  Map<String, dynamic> toFirestore() => {
+        'titulo': titulo,
+        'descripcion': descripcion,
+        'creadaEn': Timestamp.fromDate(creadaEn),
+        'tipo': tipo,
+        'leida': leida,
+        'pideCalificacion': pideCalificacion,
+        'idEvento': idEvento,
+      };
+
   factory Notificacion.fromJson(Map<String, dynamic> j) => Notificacion(
-        id: j['id'] as String,
+        id: j['id'] as String? ?? '',
         titulo: j['titulo'] as String? ?? '',
         descripcion: j['descripcion'] as String? ?? '',
         creadaEn: DateTime.tryParse(j['creadaEn'] as String? ?? ''),
@@ -51,4 +63,26 @@ class Notificacion {
         pideCalificacion: j['pideCalificacion'] as bool? ?? false,
         idEvento: j['idEvento'] as String? ?? '',
       );
+
+  factory Notificacion.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final j = doc.data() ?? {};
+    DateTime? dt;
+    if (j['creadaEn'] is Timestamp) {
+      dt = (j['creadaEn'] as Timestamp).toDate();
+    } else if (j['creadaEn'] is String) {
+      dt = DateTime.tryParse(j['creadaEn'] as String);
+    }
+    return Notificacion(
+      id: doc.id,
+      titulo: j['titulo'] as String? ?? '',
+      descripcion: j['descripcion'] as String? ?? '',
+      creadaEn: dt ?? DateTime.now(),
+      tipo: j['tipo'] as String? ?? 'Eventos',
+      leida: j['leida'] as bool? ?? false,
+      pideCalificacion: j['pideCalificacion'] as bool? ?? false,
+      idEvento: j['idEvento'] as String? ?? '',
+    );
+  }
 }

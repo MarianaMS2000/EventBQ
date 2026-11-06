@@ -6,7 +6,6 @@ import 'package:flutter/material.dart' show TimeOfDay, debugPrint;
 import '../data/datos_simulados.dart';
 import '../models/evento.dart';
 import '../models/filtros_evento.dart';
-import '../models/inscripcion.dart';
 import '../preferences/preferencias_usuario.dart';
 import '../utils/formato.dart';
 import 'cambios.dart';
@@ -841,18 +840,53 @@ class EventoRepository {
         .any((c) => c['evento'] == idEvento && c['usuario'] == _usuarioId);
   }
 
-  void calificar(String idEvento, int estrellas) {
+  Future<void> calificar(String idEvento, int estrellas) async {
     _asegurarDatosLocales();
+    final uid = _usuarioId;
+    if (uid.isEmpty) return;
+
     _calificaciones.removeWhere(
-        (c) => c['evento'] == idEvento && c['usuario'] == _usuarioId);
+        (c) => c['evento'] == idEvento && c['usuario'] == uid);
     _calificaciones.add({
       'evento': idEvento,
-      'usuario': _usuarioId,
+      'usuario': uid,
       'estrellas': estrellas,
     });
     PreferenciasUsuario.guardarTexto(
         _kCalificaciones, jsonEncode(_calificaciones));
-    NotificacionRepository().quitarPedidoCalificacion(idEvento);
+
+    try {
+      final batch = _firestore.batch();
+
+      final califRef = _firestore
+          .collection('events')
+          .doc(idEvento)
+          .collection('calificaciones')
+          .doc(uid);
+      batch.set(califRef, {
+        'estrellas': estrellas,
+        'creadaEn': FieldValue.serverTimestamp(),
+      });
+
+      final evRef = _firestore.collection('events').doc(idEvento);
+      batch.update(evRef, {
+        'ratingCantidad': FieldValue.increment(1),
+        'ratingSuma': FieldValue.increment(estrellas.toDouble()),
+      });
+
+      await batch.commit();
+
+      final ev = obtenerEventoPorId(idEvento);
+      if (ev != null) {
+        ev.ratingCantidad++;
+        ev.ratingSuma += estrellas;
+      }
+    } catch (e) {
+      debugPrint('Error al guardar calificación en Firestore: $e');
+    }
+
+    await NotificacionRepository().quitarPedidoCalificacion(idEvento);
+    notificarCambios();
   }
 
   double ratingDeEvento(String idEvento) {

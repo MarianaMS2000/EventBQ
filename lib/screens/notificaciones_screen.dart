@@ -82,7 +82,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
                       style: const TextStyle(fontSize: 13, color: Color(0xFF444444)),
                     ),
                     GestureDetector(
-                      onTap: _repo.marcarTodasLeidas,
+                      onTap: () => _repo.marcarTodasLeidas(),
                       child: const Text(
                         'Marcar como leídas',
                         style: TextStyle(

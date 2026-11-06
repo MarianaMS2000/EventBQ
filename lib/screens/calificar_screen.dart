@@ -22,15 +22,16 @@ class _CalificarScreenState extends State<CalificarScreen> {
     return args is Evento ? args : EventoRepository().obtenerEventosTop()[0]; // respaldo
   }
 
-  void _enviar() {
+  Future<void> _enviar() async {
     if (_estrellas == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Elige cuántas estrellas le das al evento')),
       );
       return;
     }
-    // Se guarda la calificación (SharedPreferences) para el rating del organizador.
-    EventoRepository().calificar(_evento().id, _estrellas);
+    // Se guarda la calificación en Firestore y caché
+    await EventoRepository().calificar(_evento().id, _estrellas);
+    if (!mounted) return;
     Navigator.pushReplacementNamed(context, '/gracias-opinion');
   }
 

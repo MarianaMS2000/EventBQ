@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/evento.dart';
-import '../models/inscripcion.dart';
 import '../repositories/cambios.dart';
 import '../repositories/evento_repository.dart';
 import '../theme/colores.dart';
