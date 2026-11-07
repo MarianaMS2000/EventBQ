@@ -51,8 +51,8 @@ class BannerPremium extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: const [
+          const Row(
+            children: [
               LogoFlor(tamano: 22, color: Color(0xFFC77DFF)),
               SizedBox(width: 8),
               Text(

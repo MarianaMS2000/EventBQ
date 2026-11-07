@@ -15,12 +15,12 @@ class GraciasOpinionScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
           child: Column(
             children: [
-              Expanded(
+              const Expanded(
                 child: Center(
                   child: SingleChildScrollView(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
+                      children: [
                         MascotaGracias(tamano: 150),
                         SizedBox(height: 40),
                         Text(

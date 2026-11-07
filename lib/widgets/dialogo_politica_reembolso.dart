@@ -51,8 +51,8 @@ class DialogoPoliticaReembolso extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Text.rich(
-              const TextSpan(
+            const Text.rich(
+              TextSpan(
                 style: base,
                 children: [
                   TextSpan(text: 'Para eventos gratuitos: ', style: negrita),
@@ -61,8 +61,8 @@ class DialogoPoliticaReembolso extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            Text.rich(
-              const TextSpan(
+            const Text.rich(
+              TextSpan(
                 style: base,
                 children: [
                   TextSpan(text: 'Para eventos de pago:\n', style: negrita),

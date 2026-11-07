@@ -41,8 +41,8 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: EncabezadoUsuario(mostrarCampana: false),
               ),
               const Divider(height: 1),

@@ -25,11 +25,6 @@ class EventoRepository {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  static const _kEntradas = 'entradas_compradas';
-  static const _kPublicaciones = 'publicaciones';
-  static const _kPlanPro = 'plan_organizador_pro';
-  static const _kCalificaciones = 'calificaciones';
-
   // Caché de eventos en memoria
   final List<Evento> _publicados = [];
   final Map<String, Evento> _mapaEventos = {};
@@ -47,14 +42,10 @@ class EventoRepository {
 
   bool _inicializado = false;
 
-  // Calificaciones: cada una es {evento, usuario, estrellas}.
-  final List<Map<String, dynamic>> _calificaciones = [];
+  // Calificaciones realizadas por el usuario activo en la sesión
+  final Set<String> _calificados = {};
 
-  // Datos locales de respaldo
   String _usuarioCargado = '\u0000';
-  List<String> _entradas = []; // ids de los eventos a los que se inscribió
-  List<DateTime> _publicaciones = []; // fechas en que publicó eventos
-  bool _planPro = false;
 
   // ---------- ciclo de vida y sincronización ----------
 
@@ -94,17 +85,14 @@ class EventoRepository {
           .snapshots()
           .listen((snap) {
         _inscripciones.clear();
-        _entradas.clear();
 
         for (final doc in snap.docs) {
           final insc = Inscripcion.fromFirestore(doc);
           if (insc.esActiva) {
             _inscripciones[insc.eventoId] = insc;
-            _entradas.add(insc.eventoId);
           }
         }
 
-        _guardarEntradas();
         notificarCambios();
       }, onError: (_) {});
 
@@ -136,6 +124,7 @@ class EventoRepository {
     _inicializado = false;
     _inscripciones.clear();
     _favoritos.clear();
+    _calificados.clear();
   }
 
   /// Sube los eventos de muestra si la base de datos está vacía.
@@ -165,41 +154,7 @@ class EventoRepository {
   }
 
   void _asegurarDatosLocales() {
-    final id = PreferenciasUsuario.usuarioActual;
-    if (id != _usuarioCargado) {
-      _usuarioCargado = id;
-      _entradas = PreferenciasUsuario.leerLista(
-          PreferenciasUsuario.claveDe(_kEntradas, id));
-      _publicaciones = PreferenciasUsuario.leerLista(
-              PreferenciasUsuario.claveDe(_kPublicaciones, id))
-          .map(DateTime.tryParse)
-          .whereType<DateTime>()
-          .toList();
-      _planPro = PreferenciasUsuario.leerBool(
-          PreferenciasUsuario.claveDe(_kPlanPro, id));
-
-      final rawCal = PreferenciasUsuario.leerTexto(_kCalificaciones);
-      if (rawCal != null && _calificaciones.isEmpty) {
-        try {
-          _calificaciones.addAll((jsonDecode(rawCal) as List)
-              .map((j) => Map<String, dynamic>.from(j as Map)));
-        } catch (_) {}
-      }
-    }
-  }
-
-  void _guardarEntradas() {
-    PreferenciasUsuario.guardarLista(
-      PreferenciasUsuario.claveDe(_kEntradas, _usuarioCargado),
-      _entradas,
-    );
-  }
-
-  void _guardarPublicaciones() {
-    PreferenciasUsuario.guardarLista(
-      PreferenciasUsuario.claveDe(_kPublicaciones, _usuarioCargado),
-      _publicaciones.map((d) => d.toIso8601String()).toList(),
-    );
+    _usuarioCargado = PreferenciasUsuario.usuarioActual;
   }
 
   void _actualizarEstadoSiPaso(Evento e) {
@@ -330,13 +285,6 @@ class EventoRepository {
       final e = obtenerEventoPorId(id);
       if (e != null) resultado.add(e);
     }
-    // Compatibilidad si aún no carga el snapshot remoto
-    if (resultado.isEmpty) {
-      for (final id in PreferenciasUsuario.favoritos) {
-        final e = obtenerEventoPorId(id);
-        if (e != null && !resultado.contains(e)) resultado.add(e);
-      }
-    }
     return resultado;
   }
 
@@ -345,8 +293,7 @@ class EventoRepository {
   List<String> obtenerOpcionesFecha() => datosOpcionesFecha;
 
   bool esFavorito(String idEvento) {
-    if (_favoritos.contains(idEvento)) return true;
-    return PreferenciasUsuario.esFavorito(idEvento);
+    return _favoritos.contains(idEvento);
   }
 
   Future<void> alternarFavorito(String idEvento) async {
@@ -378,7 +325,6 @@ class EventoRepository {
         } catch (_) {}
       }
     }
-    await PreferenciasUsuario.alternarFavorito(idEvento);
     notificarCambios();
   }
 
@@ -386,13 +332,8 @@ class EventoRepository {
 
   /// Devuelve los eventos a los que el usuario tiene inscripción activa.
   List<Evento> obtenerEntradasCompradas() {
-    _asegurarDatosLocales();
     final lista = <Evento>[];
-    final ids = _inscripciones.isNotEmpty
-        ? _inscripciones.keys.toList()
-        : _entradas;
-
-    for (final id in ids) {
+    for (final id in _inscripciones.keys) {
       final e = obtenerEventoPorId(id);
       if (e != null && !lista.contains(e)) {
         lista.add(e);
@@ -402,27 +343,15 @@ class EventoRepository {
   }
 
   bool estaInscrito(String idEvento) {
-    _asegurarDatosLocales();
     if (_inscripciones.containsKey(idEvento)) {
       return _inscripciones[idEvento]!.esActiva;
     }
-    return _entradas.contains(idEvento);
+    return false;
   }
 
   /// Retorna la inscripción activa asociada a un evento (con su código criptográfico).
   Inscripcion? obtenerInscripcion(String idEvento) {
     return _inscripciones[idEvento];
-  }
-
-  List<String> usuariosInscritos(String idEvento) {
-    _asegurarDatosLocales();
-    final ids = <String>[];
-    for (final u in UsuarioRepository().obtenerCuentas()) {
-      final entradas = PreferenciasUsuario.leerLista(
-          PreferenciasUsuario.claveDe(_kEntradas, u.id));
-      if (entradas.contains(idEvento)) ids.add(u.id);
-    }
-    return ids;
   }
 
   /// Genera un código criptográficamente seguro de 24 caracteres alfanuméricos.
@@ -551,11 +480,6 @@ class EventoRepository {
         codigo: _generarCodigoSeguro(),
       );
       _inscripciones[evento.id] = inscLocal;
-      if (!_entradas.contains(evento.id)) {
-        _entradas.add(evento.id);
-        _guardarEntradas();
-      }
-
       notificarCambios();
       return null;
     } catch (e) {
@@ -618,9 +542,7 @@ class EventoRepository {
         ev.cuposDisponibles = (ev.cuposDisponibles + 1).clamp(0, ev.cuposTotales);
       }
 
-      _entradas.remove(idEvento);
       _inscripciones.remove(idEvento);
-      _guardarEntradas();
       notificarCambios();
       return null;
     } catch (e) {
@@ -649,8 +571,6 @@ class EventoRepository {
     _publicados.removeWhere((p) => p.id == evento.id);
     _publicados.insert(0, evento);
 
-    _publicaciones.add(DateTime.now());
-    _guardarPublicaciones();
     notificarCambios();
   }
 
@@ -747,8 +667,7 @@ class EventoRepository {
     _asegurarDatosLocales();
     _publicados.removeWhere((p) => p.id == idEvento);
     _mapaEventos.remove(idEvento);
-    _entradas.remove(idEvento);
-    _guardarEntradas();
+    _inscripciones.remove(idEvento);
 
     try {
       await _firestore.collection('events').doc(idEvento).delete();
@@ -788,72 +707,41 @@ class EventoRepository {
 
   // ---------- límites y calificaciones ----------
 
-  List<DateTime> _publicacionesVigentes() {
-    final ahora = DateTime.now();
-    return _publicaciones.where((d) {
-      final vence = DateTime(d.year, d.month + 6, d.day);
-      return vence.isAfter(ahora);
-    }).toList();
-  }
-
   int get eventosPublicados {
-    _asegurarDatosLocales();
-    final vigentesLocales = _publicacionesVigentes().length;
     final hace180Dias = DateTime.now().subtract(const Duration(days: 180));
-    final creadosRecientes = obtenerEventosCreados().where((e) {
+    return obtenerEventosCreados().where((e) {
       return e.creadoEn != null && e.creadoEn!.isAfter(hace180Dias);
     }).length;
-    return creadosRecientes > vigentesLocales ? creadosRecientes : vigentesLocales;
   }
 
   bool get planOrganizadorActivo {
-    final u = UsuarioRepository().obtenerUsuarioActual();
-    if (u.planPro) return true;
-    _asegurarDatosLocales();
-    return _planPro;
+    return UsuarioRepository().obtenerUsuarioActual().planPro;
   }
 
   bool get limiteAlcanzado =>
       !planOrganizadorActivo && eventosPublicados >= limiteEventosPeriodo;
 
   Future<void> activarPlanOrganizador() async {
-    _asegurarDatosLocales();
-    _planPro = true;
-    await PreferenciasUsuario.guardarBool(
-      PreferenciasUsuario.claveDe(_kPlanPro, _usuarioCargado),
-      true,
-    );
     await UsuarioRepository().activarPlanPro();
     notificarCambios();
   }
 
   DateTime get fechaProximoEvento {
-    _asegurarDatosLocales();
-    final vigentes = _publicacionesVigentes()..sort();
-    final primera = vigentes.isEmpty ? DateTime.now() : vigentes.first;
+    final creados = obtenerEventosCreados()
+      ..sort((a, b) => (a.creadoEn ?? DateTime.now()).compareTo(b.creadoEn ?? DateTime.now()));
+    final primera = creados.isEmpty ? DateTime.now() : (creados.first.creadoEn ?? DateTime.now());
     return DateTime(primera.year, primera.month + 6, primera.day);
   }
 
   bool yaCalifico(String idEvento) {
-    _asegurarDatosLocales();
-    return _calificaciones
-        .any((c) => c['evento'] == idEvento && c['usuario'] == _usuarioId);
+    return _calificados.contains(idEvento);
   }
 
   Future<void> calificar(String idEvento, int estrellas) async {
-    _asegurarDatosLocales();
     final uid = _usuarioId;
     if (uid.isEmpty) return;
 
-    _calificaciones.removeWhere(
-        (c) => c['evento'] == idEvento && c['usuario'] == uid);
-    _calificaciones.add({
-      'evento': idEvento,
-      'usuario': uid,
-      'estrellas': estrellas,
-    });
-    PreferenciasUsuario.guardarTexto(
-        _kCalificaciones, jsonEncode(_calificaciones));
+    _calificados.add(idEvento);
 
     try {
       final batch = _firestore.batch();
@@ -890,23 +778,16 @@ class EventoRepository {
   }
 
   double ratingDeEvento(String idEvento) {
-    _asegurarDatosLocales();
     final ev = obtenerEventoPorId(idEvento);
     if (ev != null && ev.ratingCantidad > 0) {
       return ev.ratingPromedio;
     }
-    final notas = _calificaciones
-        .where((c) => c['evento'] == idEvento)
-        .map((c) => c['estrellas'] as int)
-        .toList();
-    if (notas.isEmpty) return 0;
-    return notas.reduce((a, b) => a + b) / notas.length;
+    return 0.0;
   }
 
   double ratingDeCreador(String idUsuario) {
-    _asegurarDatosLocales();
     final suyos = obtenerEventosDeCreador(idUsuario);
-    if (suyos.isEmpty) return 0;
+    if (suyos.isEmpty) return 0.0;
     final conRating = suyos.where((e) => e.ratingCantidad > 0).toList();
     if (conRating.isNotEmpty) {
       final totalPuntos =
@@ -915,13 +796,7 @@ class EventoRepository {
           conRating.fold(0, (acum, e) => acum + e.ratingCantidad);
       return totalVotos > 0 ? totalPuntos / totalVotos : 0.0;
     }
-    final ids = suyos.map((e) => e.id).toSet();
-    final notas = _calificaciones
-        .where((c) => ids.contains(c['evento']))
-        .map((c) => c['estrellas'] as int)
-        .toList();
-    if (notas.isEmpty) return 0;
-    return notas.reduce((a, b) => a + b) / notas.length;
+    return 0.0;
   }
 
   /// Valida el acceso de un asistente al evento (Control de Acceso en puerta).

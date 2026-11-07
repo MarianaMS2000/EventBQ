@@ -36,7 +36,7 @@ class PanelOrganizadorScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              EncabezadoUsuario(),
+              const EncabezadoUsuario(),
               const SizedBox(height: 18),
 
               // ----- Título con flecha -----

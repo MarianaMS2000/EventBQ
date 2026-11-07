@@ -41,9 +41,9 @@ class SuscripcionActivaScreen extends StatelessWidget {
                     child: Image.asset(
                       'assets/images/premium_activo.png',
                       fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) => Stack(
-                      clipBehavior: Clip.none,
-                      children: const [
+                      errorBuilder: (context, error, stackTrace) => const Stack(
+                        clipBehavior: Clip.none,
+                        children: [
                         Positioned(
                           left: 0,
                           bottom: 0,

@@ -14,7 +14,7 @@ class MisEventosScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 130),
         child: Column(
           children: [
-            EncabezadoUsuario(),
+            const EncabezadoUsuario(),
             const SizedBox(height: 40),
             const Text(
               '¿Qué eventos\ndeseas ver?',

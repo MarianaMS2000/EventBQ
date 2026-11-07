@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 /// Se suma 1 cada vez que se guarda algo (evento nuevo, inscripción, perfil...).

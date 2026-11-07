@@ -19,7 +19,6 @@ class PreferenciasUsuario {
   // ---- Claves ----
   static const _kUsuarioActivo = 'usuario_activo';
   static const _kOnboarding = 'onboarding_completado';
-  static const _kFavoritos = 'eventos_favoritos';
 
   // ---- Sesión ----
   /// Id del usuario que tiene la sesión abierta ('' = nadie).
@@ -35,7 +34,7 @@ class PreferenciasUsuario {
 
   static bool get sesionIniciada => usuarioActual.isNotEmpty;
 
-  /// Clave que pertenece a un usuario concreto: "favoritos__connor".
+  /// Clave que pertenece a un usuario concreto: "notificaciones__connor".
   static String claveDe(String base, String idUsuario) => '${base}__$idUsuario';
 
   /// Clave del usuario con sesión abierta.
@@ -53,38 +52,11 @@ class PreferenciasUsuario {
     }
   }
 
-  // ---- Favoritos (ids de eventos con el corazón activado) ----
-  static List<String> get favoritos =>
-      List<String>.from(_prefs.getStringList(clave(_kFavoritos)) ?? const []);
-
-  static bool esFavorito(String idEvento) => favoritos.contains(idEvento);
-
-  static Future<void> alternarFavorito(String idEvento) async {
-    final lista = favoritos;
-    if (lista.contains(idEvento)) {
-      lista.remove(idEvento);
-    } else {
-      lista.add(idEvento);
-    }
-    await _prefs.setStringList(clave(_kFavoritos), lista);
-  }
-
-  // ---- Lectura / escritura genérica (la usan los repositorios) ----
+  // ---- Lectura / escritura de texto (para caché fuera de línea) ----
   static String? leerTexto(String clave) => _prefs.getString(clave);
 
   static Future<bool> guardarTexto(String clave, String valor) =>
       _prefs.setString(clave, valor);
-
-  static List<String> leerLista(String clave) =>
-      List<String>.from(_prefs.getStringList(clave) ?? const []);
-
-  static Future<bool> guardarLista(String clave, List<String> valor) =>
-      _prefs.setStringList(clave, valor);
-
-  static bool leerBool(String clave) => _prefs.getBool(clave) ?? false;
-
-  static Future<bool> guardarBool(String clave, bool valor) =>
-      _prefs.setBool(clave, valor);
 
   /// Borra todo lo guardado (por si lo necesitas para pruebas).
   static Future<void> borrarTodo() async {
