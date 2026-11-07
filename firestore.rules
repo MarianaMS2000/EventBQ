@@ -91,13 +91,29 @@ service cloud.firestore {
         && (request.resource.data.creadorId == request.auth.uid || request.resource.data.creadorId == '')
         && request.resource.data.cuposTotales >= 0
         && request.resource.data.titulo is string
-        && request.resource.data.titulo.size() > 0;
+        && request.resource.data.titulo.size() > 0
+        && (!('ubicacion' in request.resource.data) || (
+            request.resource.data.ubicacion is latlng
+            && request.resource.data.ubicacion.latitude >= -90.0
+            && request.resource.data.ubicacion.latitude <= 90.0
+            && request.resource.data.ubicacion.longitude >= -180.0
+            && request.resource.data.ubicacion.longitude <= 180.0
+        ));
 
       allow delete: if isSignedIn() && resource.data.creadorId == request.auth.uid;
 
       allow update: if isSignedIn() && (
         // Caso A: El creador del evento puede actualizar todos sus campos
-        resource.data.creadorId == request.auth.uid
+        (
+          resource.data.creadorId == request.auth.uid
+          && (!('ubicacion' in request.resource.data) || (
+              request.resource.data.ubicacion is latlng
+              && request.resource.data.ubicacion.latitude >= -90.0
+              && request.resource.data.ubicacion.latitude <= 90.0
+              && request.resource.data.ubicacion.longitude >= -180.0
+              && request.resource.data.ubicacion.longitude <= 180.0
+          ))
+        )
         ||
         // Caso B: Excepción controlada para asistentes/visitantes:
         // Solo pueden modificar cuposDisponibles, visualizaciones, ratingSuma y ratingCantidad

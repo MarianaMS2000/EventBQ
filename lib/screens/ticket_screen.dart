@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/evento.dart';
 import '../repositories/evento_repository.dart';
+import '../services/ticket_pdf_service.dart';
 import '../theme/colores.dart';
 import '../widgets/logo_flor.dart';
 import '../widgets/pantalla_con_barra.dart';
@@ -9,8 +10,33 @@ import '../widgets/ticket_de_evento.dart';
 /// "¡Tu ticket aquí!": la entrada con su QR.
 /// Se abre desde el Panel de Asistente con el botón "Ver ticket":
 ///   Navigator.pushNamed(context, '/ticket', arguments: evento);
-class TicketScreen extends StatelessWidget {
+class TicketScreen extends StatefulWidget {
   const TicketScreen({super.key});
+
+  @override
+  State<TicketScreen> createState() => _TicketScreenState();
+}
+
+class _TicketScreenState extends State<TicketScreen> {
+  bool _generandoPdf = false;
+
+  Future<void> _descargarPdf(Evento e) async {
+    if (_generandoPdf) return;
+    setState(() => _generandoPdf = true);
+    try {
+      await TicketPdfService.descargarTicketPdf(evento: e);
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(err.toString().replaceAll('Exception: ', '')),
+          backgroundColor: const Color(0xFF8E0B12),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _generandoPdf = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,16 +79,21 @@ class TicketScreen extends StatelessWidget {
                   width: double.infinity,
                   height: 46,
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Descargar PDF: pendiente')),
-                      );
-                    },
-                    icon: const Icon(Icons.picture_as_pdf_outlined,
-                        color: Colores.azulOscuro),
-                    label: const Text(
-                      'Descargar PDF',
-                      style: TextStyle(
+                    onPressed: _generandoPdf ? null : () => _descargarPdf(e),
+                    icon: _generandoPdf
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colores.azulOscuro,
+                            ),
+                          )
+                        : const Icon(Icons.picture_as_pdf_outlined,
+                            color: Colores.azulOscuro),
+                    label: Text(
+                      _generandoPdf ? 'Generando PDF...' : 'Descargar PDF',
+                      style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF4A4A55),

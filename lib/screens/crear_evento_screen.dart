@@ -1,14 +1,20 @@
+import 'dart:async';
 import 'dart:typed_data';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
 import '../data/datos_simulados.dart';
 import '../models/evento.dart';
 import '../repositories/evento_repository.dart';
+import '../services/geocodificador_service.dart';
 import '../theme/colores.dart';
 import '../utils/formato.dart';
-import '../widgets/imagen_asset.dart';
 import '../widgets/dialogo_evento_publicado.dart';
 import '../widgets/dialogo_limite_alcanzado.dart';
+import '../widgets/imagen_asset.dart';
+import '../widgets/mapa_evento.dart';
 import '../widgets/pantalla_con_barra.dart';
 
 /// "Crear nuevo evento": formulario que se abre con el botón + del centro
@@ -45,14 +51,57 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
   bool _gratis = false;
   bool _publicando = false;
 
+  late final MapController _mapController;
+  LatLng _puntoMapa = GeocodificadorService.centroBarranquilla;
+  bool _puntoConfirmado = false;
+  bool _buscandoLugar = false;
+  Timer? _debounceUbicacion;
+  String? _direccionResuelta;
+
+  @override
+  void initState() {
+    super.initState();
+    _mapController = MapController();
+  }
+
   @override
   void dispose() {
+    _debounceUbicacion?.cancel();
+    _mapController.dispose();
     _nombreCtrl.dispose();
     _ubicacionCtrl.dispose();
     _sobreCtrl.dispose();
     _incluyeCtrl.dispose();
     _precioCtrl.dispose();
     super.dispose();
+  }
+
+  void _alCambiarTextoUbicacion(String texto) {
+    _debounceUbicacion?.cancel();
+    if (texto.trim().length < 3) return;
+    _debounceUbicacion = Timer(const Duration(milliseconds: 900), () async {
+      if (!mounted) return;
+      setState(() => _buscandoLugar = true);
+      final res = await GeocodificadorService.buscarLugar(texto);
+      if (!mounted) return;
+      setState(() {
+        _buscandoLugar = false;
+        if (res != null) {
+          _puntoMapa = res.punto;
+          _direccionResuelta = res.direccion;
+          _puntoConfirmado = true;
+          _mapController.move(res.punto, 15.0);
+        }
+      });
+    });
+  }
+
+  void _onPuntoMapaSeleccionado(LatLng nuevoPunto) {
+    setState(() {
+      _puntoMapa = nuevoPunto;
+      _puntoConfirmado = true;
+    });
+    _mapController.move(nuevoPunto, _mapController.camera.zoom);
   }
 
   // ---------- formatos ----------
@@ -128,6 +177,9 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
     if (_ubicacionCtrl.text.trim().length < 3) {
       return 'Escribe la ubicación del evento';
     }
+    if (!_puntoConfirmado) {
+      return 'Confirma el punto exacto en el mapa tocando la ubicación';
+    }
     if (_sobreCtrl.text.trim().isEmpty) {
       return 'Cuéntanos de qué trata el evento';
     }
@@ -173,6 +225,8 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
       incluye: incluye,
       cuposDisponibles: _aforo,
       cuposTotales: _aforo,
+      ubicacion: GeoPoint(_puntoMapa.latitude, _puntoMapa.longitude),
+      direccionResuelta: _direccionResuelta,
     );
     aplicarFechaAEvento(e, _fecha, _horaInicio, _horaCierre);
     return e;
@@ -260,6 +314,7 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
     required TextEditingController controller,
     required String hint,
     IconData? icono,
+    ValueChanged<String>? onChanged,
   }) {
     return Container(
       height: 46,
@@ -274,6 +329,7 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
           Expanded(
             child: TextField(
               controller: controller,
+              onChanged: onChanged,
               style: const TextStyle(fontSize: 15, color: Colores.azulOscuro),
               decoration: InputDecoration(
                 border: InputBorder.none,
@@ -532,6 +588,14 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
                 controller: _ubicacionCtrl,
                 hint: 'Dirección exacta del lugar',
                 icono: Icons.location_on_outlined,
+                onChanged: _alCambiarTextoUbicacion,
+              ),
+              const SizedBox(height: 12),
+              MapaSelectorUbicacion(
+                controller: _mapController,
+                punto: _puntoMapa,
+                buscando: _buscandoLugar,
+                onPuntoSeleccionado: _onPuntoMapaSeleccionado,
               ),
               const SizedBox(height: 24),
 

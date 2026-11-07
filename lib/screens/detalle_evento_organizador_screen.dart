@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import '../models/evento.dart';
 import '../repositories/cambios.dart';
 import '../repositories/evento_repository.dart';
@@ -8,6 +9,7 @@ import '../widgets/dialogo_cancelar_evento.dart';
 import '../widgets/dialogo_reprogramar_evento.dart';
 import '../widgets/encabezado_usuario.dart';
 import '../widgets/grafico_barras.dart';
+import '../widgets/mapa_evento.dart';
 import '../widgets/pantalla_con_barra.dart';
 import '../widgets/tarjeta_estadistica.dart';
 import '../widgets/tarjeta_evento_horizontal.dart';
@@ -257,6 +259,16 @@ class _DetalleEventoOrganizadorScreenState
                 mostrarEstado: true,
                 estadoMostrado: estado,
               ),
+              if (evento.ubicacion != null) ...[
+                const SizedBox(height: 14),
+                MapaDetalleEvento(
+                  punto: LatLng(
+                    evento.ubicacion!.latitude,
+                    evento.ubicacion!.longitude,
+                  ),
+                  lugar: evento.lugar,
+                ),
+              ],
               const SizedBox(height: 16),
 
               // ----- Estadísticas -----

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import '../models/evento.dart';
 import '../models/organizador.dart';
 import '../repositories/cambios.dart';
@@ -9,6 +10,7 @@ import '../widgets/agenda_timeline.dart';
 import '../widgets/dialogo_confirmar_asistencia.dart';
 import '../widgets/encabezado_usuario.dart';
 import '../widgets/imagen_asset.dart';
+import '../widgets/mapa_evento.dart';
 import '../widgets/pantalla_con_barra.dart';
 
 /// Recibe el Evento como argumento:
@@ -224,46 +226,37 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
                     ],
                     const SizedBox(height: 20),
                     _subtitulo('Ubicacion'),
-                    Container(
-                      height: 150,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colores.azulBrillante, width: 2),
-                      ),
-                      // Espacio reservado para el mapa / ubicación del evento
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          color: const Color(0xFFE3EEF5),
-                          alignment: Alignment.center,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.location_on,
-                                  color: Colores.azulBrillante, size: 40),
-                              const SizedBox(height: 6),
-                              const Text(
-                                'Aquí va la ubicación del evento',
-                                style: TextStyle(
-                                  fontSize: 13,
+                    if (e.ubicacion != null)
+                      MapaDetalleEvento(
+                        punto: LatLng(e.ubicacion!.latitude, e.ubicacion!.longitude),
+                        lugar: e.lugar,
+                      )
+                    else
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF3F7FA),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colores.azulBrillante, width: 2),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.location_on, color: Colores.azulBrillante, size: 28),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                e.lugar,
+                                style: const TextStyle(
+                                  fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   color: Colores.azulOscuro,
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                e.lugar,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colores.grisTexto,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
                     if (e.agenda.isNotEmpty) ...[
                       const SizedBox(height: 20),
                       _subtitulo('Agenda'),

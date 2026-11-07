@@ -39,6 +39,10 @@ class Evento {
   int ratingCantidad;
   DateTime? creadoEn;
 
+  // Ubicación en mapa
+  GeoPoint? ubicacion;
+  String? direccionResuelta;
+
   Evento({
     required this.id,
     required this.titulo,
@@ -67,6 +71,8 @@ class Evento {
     this.ratingSuma = 0.0,
     this.ratingCantidad = 0,
     this.creadoEn,
+    this.ubicacion,
+    this.direccionResuelta,
   }) : inscripciones = inscripciones ?? [];
 
   List<String> get _partes => fechaCompleta.split(' • ');
@@ -84,6 +90,11 @@ class Evento {
   /// Promedio de valoración
   double get ratingPromedio =>
       ratingCantidad > 0 ? ratingSuma / ratingCantidad : 0.0;
+
+  /// Coordenadas y presencia de ubicación
+  double? get latitud => ubicacion?.latitude;
+  double? get longitud => ubicacion?.longitude;
+  bool get tieneUbicacion => ubicacion != null;
 
   /// Fecha real del evento (null si es un evento de ejemplo sin fecha real).
   DateTime? get fecha => fechaIso.isEmpty ? null : DateTime.tryParse(fechaIso);
@@ -115,6 +126,8 @@ class Evento {
         'inscripciones': inscripciones,
         'ratingSuma': ratingSuma,
         'ratingCantidad': ratingCantidad,
+        if (ubicacion != null) 'ubicacion': ubicacion,
+        if (direccionResuelta != null) 'direccionResuelta': direccionResuelta,
       };
 
   Map<String, dynamic> toFirestore() {
@@ -164,6 +177,15 @@ class Evento {
             : (j['creadoEn'] is String
                 ? DateTime.tryParse(j['creadoEn'] as String)
                 : null),
+        ubicacion: j['ubicacion'] is GeoPoint
+            ? (j['ubicacion'] as GeoPoint)
+            : (j['ubicacion'] is Map
+                ? GeoPoint(
+                    ((j['ubicacion'] as Map)['latitude'] as num).toDouble(),
+                    ((j['ubicacion'] as Map)['longitude'] as num).toDouble(),
+                  )
+                : null),
+        direccionResuelta: j['direccionResuelta'] as String?,
       );
 
   factory Evento.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {

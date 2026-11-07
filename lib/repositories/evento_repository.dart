@@ -127,29 +127,47 @@ class EventoRepository {
     _calificados.clear();
   }
 
-  /// Sube los eventos de muestra si la base de datos está vacía.
+  /// Sube los eventos de muestra si la base de datos está vacía,
+  /// o actualiza sus coordenadas si aún no las tenían.
   Future<void> sembrarDatosIniciales() async {
     try {
-      final snap = await _firestore.collection('events').limit(1).get();
-      if (snap.docs.isNotEmpty) return;
-
-      final batch = _firestore.batch();
       final todos = [
         ...datosEventosTop,
         ...datosEventosExplorar,
         ...datosEventosOrganizador,
       ];
 
-      final vistos = <String>{};
-      for (final e in todos) {
-        if (vistos.contains(e.id)) continue;
-        vistos.add(e.id);
-        e.creadorId = ''; // '' = evento de muestra
-        final ref = _firestore.collection('events').doc(e.id);
-        batch.set(ref, e.toFirestore());
+      final snap = await _firestore.collection('events').limit(1).get();
+      if (snap.docs.isEmpty) {
+        final batch = _firestore.batch();
+        final vistos = <String>{};
+        for (final e in todos) {
+          if (vistos.contains(e.id)) continue;
+          vistos.add(e.id);
+          e.creadorId = ''; // '' = evento de muestra
+          final ref = _firestore.collection('events').doc(e.id);
+          batch.set(ref, e.toFirestore());
+        }
+        await batch.commit();
+        return;
       }
 
-      await batch.commit();
+      // Si ya existen pero no tienen ubicación, actualizamos las coordenadas
+      final e1Doc = await _firestore.collection('events').doc('e1').get();
+      if (e1Doc.exists && (!e1Doc.data()!.containsKey('ubicacion') || e1Doc.data()!['ubicacion'] == null)) {
+        final batch = _firestore.batch();
+        final vistos = <String>{};
+        for (final e in todos) {
+          if (vistos.contains(e.id)) continue;
+          vistos.add(e.id);
+          if (e.ubicacion != null) {
+            batch.update(_firestore.collection('events').doc(e.id), {
+              'ubicacion': e.ubicacion,
+            });
+          }
+        }
+        await batch.commit();
+      }
     } catch (_) {}
   }
 

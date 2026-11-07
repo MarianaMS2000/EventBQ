@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/categoria.dart';
 import '../models/evento.dart';
@@ -47,6 +48,7 @@ final List<Evento> datosEventosTop = [
     lugar: 'Pabellón Cristal, Gran Malecón',
     precio: '\$ 25.00',
     imagen: 'assets/images/evento_festival.jpg',
+    ubicacion: const GeoPoint(11.0062, -74.7885),
   ),
   Evento(
     id: 'e2',
@@ -58,6 +60,7 @@ final List<Evento> datosEventosTop = [
     lugar: 'Parque La Electrificadora',
     precio: '\$ Gratis',
     imagen: 'assets/images/evento_food_fest.jpg',
+    ubicacion: const GeoPoint(11.0089, -74.8211),
   ),
 ];
 
@@ -73,6 +76,7 @@ final List<Evento> datosEventosExplorar = [
     lugar: 'Pabellón Cristal',
     precio: '\$ 15.000',
     imagen: 'assets/images/evento_yoga.jpg',
+    ubicacion: const GeoPoint(11.0062, -74.7885),
   ),
   Evento(
     id: 'e4',
@@ -84,6 +88,7 @@ final List<Evento> datosEventosExplorar = [
     lugar: 'Teatro José Consuegra Higgins',
     precio: '\$ 20.000',
     imagen: 'assets/images/evento_teatro.jpg',
+    ubicacion: const GeoPoint(10.9922, -74.7937),
   ),
   Evento(
     id: 'e5',
@@ -100,6 +105,7 @@ final List<Evento> datosEventosExplorar = [
     horario: '10:00 AM - 2:00 PM',
     cuposDisponibles: 32,
     cuposTotales: 60,
+    ubicacion: const GeoPoint(10.9855, -74.7794),
     descripcion:
         'La Retrospectiva de Acuarelas es un espacio cultural y visual diseñado para recorrer la evolución técnica, temática y emocional de la acuarela a lo largo del tiempo. Reúne una colección seleccionada de obras que destacan el uso de la luz, las transparencias y la pigmentación sobre agua. Es una experiencia inmersiva dirigida tanto a amantes del arte como a estudiantes, artistas locales y público general que busque apreciar la delicadeza de esta técnica.',
     incluye: [
@@ -133,6 +139,7 @@ final List<Evento> datosEventosExplorar = [
     lugar: 'Mall Plaza Buenavista',
     precio: '\$ 45.000',
     imagen: 'assets/images/evento_mixologia.jpg',
+    ubicacion: const GeoPoint(11.0125, -74.8275),
   ),
   Evento(
     id: 'e9',
@@ -144,6 +151,7 @@ final List<Evento> datosEventosExplorar = [
     lugar: 'Parque de las Raquetas',
     precio: '\$ Gratis',
     imagen: 'assets/images/evento_carrera.jpg',
+    ubicacion: const GeoPoint(11.0142, -74.8290),
     esHoy: true,
   ),
   Evento(
@@ -156,6 +164,7 @@ final List<Evento> datosEventosExplorar = [
     lugar: 'Gran Malecón (Sector Puerta de Oro)',
     precio: '\$ Gratis',
     imagen: 'assets/images/evento_entrenamiento.jpg',
+    ubicacion: const GeoPoint(11.0264, -74.8105),
     esHoy: true,
   ),
   Evento(
@@ -168,6 +177,7 @@ final List<Evento> datosEventosExplorar = [
     lugar: 'Gran Malecón (Punto de encuentro: Puerta de Oro)',
     precio: '\$ Gratis',
     imagen: 'assets/images/evento_ciclovia.jpg',
+    ubicacion: const GeoPoint(11.0264, -74.8105),
     esHoy: true,
   ),
 ];
@@ -223,6 +233,7 @@ final List<Evento> datosEventosOrganizador = [
     precio: '\$ 45.000',
     imagen: 'assets/images/evento_pigmentos.jpg',
     estado: 'Finalizado',
+    ubicacion: const GeoPoint(10.9822, -74.7770),
   ),
   Evento(
     id: 'e8',
@@ -235,6 +246,7 @@ final List<Evento> datosEventosOrganizador = [
     precio: '\$ 20.000',
     imagen: 'assets/images/evento_luces.jpg',
     estado: 'Finalizado',
+    ubicacion: const GeoPoint(10.9870, -74.7778),
   ),
 ];
 
