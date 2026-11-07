@@ -28,7 +28,8 @@ class _LectorQrScreenState extends State<LectorQrScreen> {
   void initState() {
     super.initState();
     _scannerCtrl = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
+      detectionSpeed: DetectionSpeed.normal,
+      formats: const [BarcodeFormat.qrCode],
     );
   }
 
@@ -75,6 +76,14 @@ class _LectorQrScreenState extends State<LectorQrScreen> {
   }
 
   Future<void> _mostrarResultado(ResultadoValidacion res) async {
+    if (res.exito) {
+      _codigoCtrl.clear();
+    }
+    try {
+      await _scannerCtrl.stop();
+    } catch (_) {}
+
+    if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       isDismissible: true,
@@ -172,6 +181,12 @@ class _LectorQrScreenState extends State<LectorQrScreen> {
         );
       },
     );
+
+    if (mounted && !_modoManual) {
+      try {
+        await _scannerCtrl.start();
+      } catch (_) {}
+    }
   }
 
   @override
@@ -291,9 +306,10 @@ class _LectorQrScreenState extends State<LectorQrScreen> {
             );
           },
           onDetect: (capture) {
+            if (_validando) return;
             final barcodes = capture.barcodes;
             for (final barcode in barcodes) {
-              if (barcode.rawValue != null) {
+              if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
                 _validar(barcode.rawValue!);
                 break;
               }
