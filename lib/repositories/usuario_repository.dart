@@ -24,6 +24,7 @@ class UsuarioRepository {
   Usuario? _usuarioActual;
   final Map<String, Usuario> _cacheUsuarios = {};
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _usuarioSub;
+  StreamSubscription<User?>? _authSub;
   bool _inicializado = false;
 
   /// Inicializa la escucha del usuario autenticado actual.
@@ -31,10 +32,25 @@ class UsuarioRepository {
     if (_inicializado) return;
     _inicializado = true;
 
-    final user = _auth.currentUser;
-    if (user != null) {
-      PreferenciasUsuario.usuarioActual = user.uid;
-      await _iniciarEscucha(user.uid);
+    // Escuchar el stream de cambios de autenticación (reactivo en Web y Móvil)
+    _authSub?.cancel();
+    _authSub = _auth.authStateChanges().listen((user) async {
+      if (user != null) {
+        PreferenciasUsuario.usuarioActual = user.uid;
+        await _iniciarEscucha(user.uid);
+      } else {
+        await _cancelarEscucha();
+      }
+      notificarCambios();
+    });
+
+    final currentUid = _auth.currentUser?.uid.isNotEmpty == true
+        ? _auth.currentUser!.uid
+        : PreferenciasUsuario.usuarioActual;
+
+    if (currentUid.isNotEmpty) {
+      PreferenciasUsuario.usuarioActual = currentUid;
+      await _iniciarEscucha(currentUid);
     }
   }
 
@@ -74,13 +90,28 @@ class UsuarioRepository {
 
   /// Usuario con la sesión abierta. Si no hay ninguno devuelve un "Invitado".
   Usuario obtenerUsuarioActual() {
-    return _usuarioActual ??
-        Usuario(
-          uid: _auth.currentUser?.uid ?? '',
-          nombre: _auth.currentUser?.displayName ?? 'Invitado',
-          usuario: '',
-          correo: _auth.currentUser?.email ?? '',
-        );
+    if (_usuarioActual != null) return _usuarioActual!;
+
+    final currentUid = _auth.currentUser?.uid.isNotEmpty == true
+        ? _auth.currentUser!.uid
+        : PreferenciasUsuario.usuarioActual;
+
+    if (currentUid.isNotEmpty) {
+      if (_cacheUsuarios.containsKey(currentUid)) {
+        _usuarioActual = _cacheUsuarios[currentUid];
+        return _usuarioActual!;
+      }
+      _iniciarEscucha(currentUid);
+    }
+
+    return Usuario(
+      uid: currentUid,
+      nombre: _auth.currentUser?.displayName?.isNotEmpty == true
+          ? _auth.currentUser!.displayName!
+          : 'Invitado',
+      usuario: '',
+      correo: _auth.currentUser?.email ?? '',
+    );
   }
 
   /// ¿Hay una sesión válida en Firebase Auth?

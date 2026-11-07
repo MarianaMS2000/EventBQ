@@ -1,10 +1,10 @@
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import '../models/evento.dart';
 import '../repositories/evento_repository.dart';
 import '../repositories/usuario_repository.dart';
+import '../utils/descarga_archivo.dart';
 import '../utils/formato.dart';
 
 /// Servicio para generar y descargar el ticket de evento en formato PDF.
@@ -299,10 +299,10 @@ class TicketPdfService {
         .replaceAll(RegExp(r'^_|_$'), '');
     final nombreArchivo = 'ticket_$tituloSanitizado.pdf';
 
-    // 6. Compartir / Descargar / Imprimir
-    await Printing.sharePdf(
+    // 6. Compartir / Descargar / Imprimir (multiplataforma)
+    await descargarOCompartirPdf(
       bytes: await pdf.save(),
-      filename: nombreArchivo,
+      nombreArchivo: nombreArchivo,
     );
   }
 
