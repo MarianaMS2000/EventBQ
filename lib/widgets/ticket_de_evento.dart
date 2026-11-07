@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../models/evento.dart';
 import '../repositories/evento_repository.dart';
 import '../theme/colores.dart';
@@ -61,7 +62,24 @@ class TicketDeEvento extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            QrPlaceholder(semilla: codigo),
+            SizedBox(
+              width: 170,
+              height: 170,
+              child: QrImageView(
+                data: '${e.id}|${insc?.uid ?? ""}|$codigo',
+                version: QrVersions.auto,
+                size: 170.0,
+                backgroundColor: Colors.white,
+                eyeStyle: const QrEyeStyle(
+                  eyeShape: QrEyeShape.square,
+                  color: Colores.azulOscuro,
+                ),
+                dataModuleStyle: const QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square,
+                  color: Colores.azulOscuro,
+                ),
+              ),
+            ),
             const SizedBox(height: 8),
             if (insc != null && insc.codigo.isNotEmpty)
               Text(

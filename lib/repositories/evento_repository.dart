@@ -923,4 +923,181 @@ class EventoRepository {
     if (notas.isEmpty) return 0;
     return notas.reduce((a, b) => a + b) / notas.length;
   }
+
+  /// Valida el acceso de un asistente al evento (Control de Acceso en puerta).
+  ///
+  /// Lee el QR o código de entrada, verifica en Firestore que pertenezca al evento,
+  /// que el organizador tenga permisos, que la entrada esté 'Activa' y no haya sido
+  /// usada ('Asistio') ni 'Anulada'.
+  /// En una transacción atómica marca estado = 'Asistio' y checkInEn = serverTimestamp().
+  /// Responde en ≤ 3 segundos.
+  Future<ResultadoValidacion> validarAcceso({
+    required String qrOPayload,
+    String? eventoIdSeleccionado,
+  }) async {
+    _asegurarDatosLocales();
+    final uidOrganizador = _usuarioId;
+    if (uidOrganizador.isEmpty) {
+      return ResultadoValidacion(
+        exito: false,
+        mensaje: 'Inicia sesión como organizador para validar',
+      );
+    }
+
+    // 1. Extraer eventoId, uid del asistente y código del QR
+    String eventoId = eventoIdSeleccionado ?? '';
+    String asistenteUid = '';
+    String codigo = qrOPayload.trim();
+
+    if (qrOPayload.contains('|')) {
+      final partes = qrOPayload.split('|');
+      if (partes.length >= 3) {
+        eventoId = partes[0].trim();
+        asistenteUid = partes[1].trim();
+        codigo = partes[2].trim();
+      }
+    } else if (qrOPayload.startsWith('{') && qrOPayload.endsWith('}')) {
+      try {
+        final j = jsonDecode(qrOPayload) as Map<String, dynamic>;
+        eventoId = j['eventoId'] as String? ?? eventoId;
+        asistenteUid = j['uid'] as String? ?? asistenteUid;
+        codigo = j['codigo'] as String? ?? codigo;
+      } catch (_) {}
+    }
+
+    if (eventoId.isEmpty) {
+      return ResultadoValidacion(
+        exito: false,
+        mensaje: 'Selecciona el evento para validar el ticket',
+      );
+    }
+
+    if (eventoIdSeleccionado != null &&
+        eventoIdSeleccionado.isNotEmpty &&
+        eventoId != eventoIdSeleccionado) {
+      return ResultadoValidacion(
+        exito: false,
+        mensaje: 'Esta entrada pertenece a otro evento',
+      );
+    }
+
+    final eventoRef = _firestore.collection('events').doc(eventoId);
+
+    try {
+      // 2. Si no viene asistenteUid en el QR, buscar la inscripción por código en el evento
+      DocumentReference<Map<String, dynamic>>? inscRef;
+      if (asistenteUid.isNotEmpty) {
+        inscRef = eventoRef.collection('inscripciones').doc(asistenteUid);
+      } else {
+        final querySnap = await eventoRef
+            .collection('inscripciones')
+            .where('codigo', isEqualTo: codigo)
+            .limit(1)
+            .get();
+        if (querySnap.docs.isNotEmpty) {
+          inscRef = querySnap.docs.first.reference;
+        }
+      }
+
+      if (inscRef == null) {
+        return ResultadoValidacion(
+          exito: false,
+          mensaje: 'Código no encontrado en este evento',
+        );
+      }
+
+      // 3. Transacción atómica de validación y check-in
+      final resultado =
+          await _firestore.runTransaction<ResultadoValidacion>((tx) async {
+        final evSnap = await tx.get(eventoRef);
+        if (!evSnap.exists) {
+          return ResultadoValidacion(
+            exito: false,
+            mensaje: 'El evento no existe',
+          );
+        }
+
+        final evData = evSnap.data()!;
+        final creadorId = evData['creadorId'] as String? ?? '';
+        if (creadorId.isNotEmpty && creadorId != uidOrganizador) {
+          return ResultadoValidacion(
+            exito: false,
+            mensaje: 'No eres el organizador de este evento',
+          );
+        }
+
+        final inscSnap = await tx.get(inscRef!);
+        if (!inscSnap.exists) {
+          return ResultadoValidacion(
+            exito: false,
+            mensaje: 'Inscripción no encontrada en el sistema',
+          );
+        }
+
+        final inscData = inscSnap.data()!;
+        final codigoGuardado = inscData['codigo'] as String? ?? '';
+        final estado = inscData['estado'] as String? ?? '';
+        final nombre = inscData['nombre'] as String? ?? 'Asistente';
+
+        if (codigoGuardado != codigo) {
+          return ResultadoValidacion(
+            exito: false,
+            mensaje: 'Código de seguridad inválido o falsificado',
+          );
+        }
+
+        if (estado == 'Anulada') {
+          return ResultadoValidacion(
+            exito: false,
+            mensaje: 'Esta entrada fue anulada',
+            nombreAsistente: nombre,
+          );
+        }
+
+        if (estado == 'Asistio') {
+          final checkInTimestamp = inscData['checkInEn'] as Timestamp?;
+          final dt = checkInTimestamp?.toDate();
+          final fechaHora = dt != null
+              ? formatoHora(TimeOfDay(hour: dt.hour, minute: dt.minute))
+              : '';
+          return ResultadoValidacion(
+            exito: false,
+            mensaje: 'Esta entrada YA FUE USADA${fechaHora.isNotEmpty ? " a las $fechaHora" : ""}',
+            nombreAsistente: nombre,
+          );
+        }
+
+        if (estado != 'Activa') {
+          return ResultadoValidacion(
+            exito: false,
+            mensaje: 'Entrada no disponible ($estado)',
+            nombreAsistente: nombre,
+          );
+        }
+
+        // Marcar estado Asistio y checkInEn
+        tx.update(inscRef!, {
+          'estado': 'Asistio',
+          'checkInEn': FieldValue.serverTimestamp(),
+        });
+
+        return ResultadoValidacion(
+          exito: true,
+          mensaje: '¡Acceso Concedido!',
+          nombreAsistente: nombre,
+          checkInEn: DateTime.now(),
+          codigo: codigo,
+        );
+      });
+
+      notificarCambios();
+      return resultado;
+    } catch (e) {
+      debugPrint('Error en validarAcceso: $e');
+      return ResultadoValidacion(
+        exito: false,
+        mensaje: 'Error de validación: $e',
+      );
+    }
+  }
 }

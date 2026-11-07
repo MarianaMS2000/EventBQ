@@ -227,7 +227,7 @@ class _DetalleEventoOrganizadorScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              EncabezadoUsuario(),
+              const EncabezadoUsuario(),
               const SizedBox(height: 18),
 
               // ----- Título con flecha -----
@@ -367,6 +367,17 @@ class _DetalleEventoOrganizadorScreenState
               // ----- Botones (solo si el evento sigue activo) -----
               if (activo && propio) ...[
                 const SizedBox(height: 26),
+                _BotonAccion(
+                  texto: 'Validar entradas (Lector QR)',
+                  fondo: Colores.azulOscuro,
+                  colorTexto: Colors.white,
+                  onTap: () => Navigator.pushNamed(
+                    context,
+                    '/lector-qr',
+                    arguments: evento,
+                  ),
+                ),
+                const SizedBox(height: 18),
                 _BotonAccion(
                   texto: 'Reprogramar evento',
                   fondo: const Color(0xFFE8DDA6),

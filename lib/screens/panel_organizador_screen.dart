@@ -146,11 +146,7 @@ class PanelOrganizadorScreen extends StatelessWidget {
               // ----- Escanear QR -----
               _TarjetaEscanearQr(
                 onAbrirLector: () {
-                  // TODO: abrir el lector de QR cuando exista
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Lector de QR: pantalla pendiente')),
-                  );
+                  Navigator.pushNamed(context, '/lector-qr');
                 },
               ),
             ],

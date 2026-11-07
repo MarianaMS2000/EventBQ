@@ -234,3 +234,20 @@ class Inscripcion {
     );
   }
 }
+
+/// Resultado de la validación de un ticket QR en el control de acceso.
+class ResultadoValidacion {
+  final bool exito;
+  final String mensaje;
+  final String? nombreAsistente;
+  final DateTime? checkInEn;
+  final String? codigo;
+
+  ResultadoValidacion({
+    required this.exito,
+    required this.mensaje,
+    this.nombreAsistente,
+    this.checkInEn,
+    this.codigo,
+  });
+}

@@ -8,6 +8,7 @@ import 'screens/main_screen.dart';
 import 'screens/notificaciones_screen.dart';
 import 'screens/crear_evento_screen.dart';
 import 'screens/detalle_evento_organizador_screen.dart';
+import 'screens/lector_qr_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/panel_asistente_screen.dart';
 import 'screens/panel_organizador_screen.dart';
@@ -61,6 +62,7 @@ class EventBQApp extends StatelessWidget {
         '/crear-evento': (context) => const CrearEventoScreen(),
         '/detalle-evento-organizador': (context) =>
             const DetalleEventoOrganizadorScreen(),
+        '/lector-qr': (context) => const LectorQrScreen(),
       },
     );
   }
