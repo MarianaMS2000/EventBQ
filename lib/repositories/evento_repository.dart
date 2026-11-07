@@ -174,21 +174,30 @@ class EventoRepository {
         return;
       }
 
-      // Si ya existen pero no tienen ubicación, actualizamos las coordenadas
+      // Si ya existen pero no tienen ubicación o cupos, actualizamos
       final e1Doc = await _firestore.collection('events').doc('e1').get();
-      if (e1Doc.exists && (!e1Doc.data()!.containsKey('ubicacion') || e1Doc.data()!['ubicacion'] == null)) {
-        final batch = _firestore.batch();
-        final vistos = <String>{};
-        for (final e in todos) {
-          if (vistos.contains(e.id)) continue;
-          vistos.add(e.id);
-          if (e.ubicacion != null) {
-            batch.update(_firestore.collection('events').doc(e.id), {
-              'ubicacion': e.ubicacion,
-            });
+      if (e1Doc.exists) {
+        final data = e1Doc.data()!;
+        final sinUbicacion = !data.containsKey('ubicacion') || data['ubicacion'] == null;
+        final sinCupos = (data['cuposTotales'] as int? ?? 0) <= 0;
+        if (sinUbicacion || sinCupos) {
+          final batch = _firestore.batch();
+          final vistos = <String>{};
+          for (final e in todos) {
+            if (vistos.contains(e.id)) continue;
+            vistos.add(e.id);
+            final updates = <String, dynamic>{};
+            if (e.ubicacion != null) updates['ubicacion'] = e.ubicacion;
+            if (e.cuposTotales > 0) {
+              updates['cuposTotales'] = e.cuposTotales;
+              updates['cuposDisponibles'] = e.cuposDisponibles;
+            }
+            if (updates.isNotEmpty) {
+              batch.update(_firestore.collection('events').doc(e.id), updates);
+            }
           }
+          await batch.commit();
         }
-        await batch.commit();
       }
     } catch (_) {}
   }
@@ -206,9 +215,9 @@ class EventoRepository {
   }
 
   String get _usuarioId {
-    final pref = PreferenciasUsuario.usuarioActual;
-    if (pref.isNotEmpty) return pref;
-    return FirebaseAuth.instance.currentUser?.uid ?? '';
+    final authUid = FirebaseAuth.instance.currentUser?.uid;
+    if (authUid != null && authUid.isNotEmpty) return authUid;
+    return PreferenciasUsuario.usuarioActual;
   }
 
   // ---------- consultas ----------
