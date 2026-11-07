@@ -280,9 +280,10 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
       );
       if (!mounted) return;
       _irAlPanel();
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      _aviso('Error al publicar el evento');
+      debugPrint('Error al publicar evento: $e');
+      _aviso('Error al publicar el evento: $e');
     } finally {
       if (mounted) setState(() => _publicando = false);
     }
