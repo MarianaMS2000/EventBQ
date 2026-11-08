@@ -313,7 +313,7 @@ class EventoRepository {
     return null;
   }
 
-  static String _normalizarTexto(String str) {
+  static String normalizarTexto(String str) {
     return str
         .toLowerCase()
         .replaceAll('á', 'a')
@@ -326,15 +326,15 @@ class EventoRepository {
   }
 
   List<Evento> buscarEventos(String texto, {FiltrosEvento? filtros}) {
-    final t = _normalizarTexto(texto);
+    final t = normalizarTexto(texto);
     final hoy = soloFecha(DateTime.now());
     return obtenerEventosExplorar().where((e) {
       if (t.isNotEmpty) {
-        final tituloNorm = _normalizarTexto(e.titulo);
-        final lugarNorm = _normalizarTexto(e.lugar);
-        final descNorm = _normalizarTexto(e.descripcion);
-        final catNorm = _normalizarTexto(e.categoria);
-        final incluyeNorm = _normalizarTexto(e.incluye.join(' '));
+        final tituloNorm = normalizarTexto(e.titulo);
+        final lugarNorm = normalizarTexto(e.lugar);
+        final descNorm = normalizarTexto(e.descripcion);
+        final catNorm = normalizarTexto(e.categoria);
+        final incluyeNorm = normalizarTexto(e.incluye.join(' '));
 
         final coincide = tituloNorm.contains(t) ||
             lugarNorm.contains(t) ||
@@ -345,9 +345,9 @@ class EventoRepository {
       }
       if (filtros != null) {
         if (filtros.categorias.isNotEmpty) {
-          final catEvento = _normalizarTexto(e.categoria);
+          final catEvento = normalizarTexto(e.categoria);
           final coincideCat = filtros.categorias.any((c) {
-            final cNorm = _normalizarTexto(c);
+            final cNorm = normalizarTexto(c);
             return catEvento == cNorm ||
                 (catEvento.startsWith('deport') && cNorm.startsWith('deport')) ||
                 (catEvento.contains(cNorm) || cNorm.contains(catEvento));

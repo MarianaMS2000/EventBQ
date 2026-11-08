@@ -5,8 +5,14 @@ import '../models/categoria.dart';
 class CategoriaItem extends StatelessWidget {
   final Categoria categoria;
   final VoidCallback? onTap;
+  final bool seleccionada;
 
-  const CategoriaItem({super.key, required this.categoria, this.onTap});
+  const CategoriaItem({
+    super.key,
+    required this.categoria,
+    this.onTap,
+    this.seleccionada = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +27,9 @@ class CategoriaItem extends StatelessWidget {
             decoration: BoxDecoration(
               color: categoria.colorFondo,
               shape: BoxShape.circle,
+              border: seleccionada
+                  ? Border.all(color: categoria.colorTexto, width: 3)
+                  : null,
             ),
             child: Icon(categoria.icono, color: Colors.white, size: 30),
           ),
@@ -29,7 +38,7 @@ class CategoriaItem extends StatelessWidget {
             categoria.nombre,
             style: TextStyle(
               fontSize: 11,
-              fontWeight: FontWeight.w600,
+              fontWeight: seleccionada ? FontWeight.bold : FontWeight.w600,
               color: categoria.colorTexto,
             ),
           ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:eventbq/models/usuario.dart';
 import 'package:eventbq/models/evento.dart';
+import 'package:eventbq/repositories/evento_repository.dart';
 import 'package:eventbq/utils/formato.dart';
 import 'package:eventbq/utils/manejo_errores.dart';
 
@@ -93,6 +94,22 @@ void main() {
       final tamano = estimarTamanoDocumentoFirestore(datos);
       expect(tamano, greaterThan(30));
       expect(tamano, lessThan(200));
+    });
+  });
+
+  group('Búsqueda Flexible y Normalización de Categorías', () {
+    test('normalizarTexto remueve tildes y pasa a minusculas', () {
+      expect(EventoRepository.normalizarTexto('Música'), equals('musica'));
+      expect(EventoRepository.normalizarTexto('Gastronomía'), equals('gastronomia'));
+      expect(EventoRepository.normalizarTexto('BOGOTÁ'), equals('bogota'));
+      expect(EventoRepository.normalizarTexto('  Malecón  '), equals('malecon'));
+    });
+
+    test('coincidencia flexible entre categorias singular y plural', () {
+      final eventoCat = EventoRepository.normalizarTexto('Deportes');
+      final filtroCat = EventoRepository.normalizarTexto('Deporte');
+      final coincide = eventoCat.startsWith('deport') && filtroCat.startsWith('deport');
+      expect(coincide, isTrue);
     });
   });
 }

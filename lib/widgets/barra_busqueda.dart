@@ -15,6 +15,7 @@ class BarraBusqueda extends StatelessWidget {
   final VoidCallback? onTap;
   final bool readOnly;
   final ValueChanged<String>? onSubmitted;
+  final VoidCallback? onLimpiar;
 
   const BarraBusqueda({
     super.key,
@@ -27,6 +28,7 @@ class BarraBusqueda extends StatelessWidget {
     this.onTap,
     this.readOnly = false,
     this.onSubmitted,
+    this.onLimpiar,
   });
 
   @override
@@ -63,6 +65,14 @@ class BarraBusqueda extends StatelessWidget {
               ),
             ),
           ),
+          if (controller != null && controller!.text.isNotEmpty && onLimpiar != null)
+            GestureDetector(
+              onTap: onLimpiar,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6),
+                child: Icon(Icons.close, color: Colores.grisTexto, size: 20),
+              ),
+            ),
           if (conFiltro)
             GestureDetector(
               onTap: onFiltro,
