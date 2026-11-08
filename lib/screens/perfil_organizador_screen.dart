@@ -51,10 +51,19 @@ class PerfilOrganizadorScreen extends StatelessWidget {
                         child: SizedBox(
                           width: 100,
                           height: 100,
-                          child: ImagenAsset(
-                            ruta: org.foto,
-                            iconoPlaceholder: Icons.person,
-                          ),
+                          child: org.foto.isNotEmpty
+                              ? ImagenAsset(
+                                  ruta: org.foto,
+                                  iconoPlaceholder: Icons.person,
+                                )
+                              : Container(
+                                  color: const Color(0xFFE8EEF8),
+                                  child: const Icon(
+                                    Icons.person,
+                                    color: Colores.azulOscuro,
+                                    size: 52,
+                                  ),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 10),

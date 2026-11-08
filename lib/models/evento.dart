@@ -43,6 +43,13 @@ class Evento {
   GeoPoint? ubicacion;
   String? direccionResuelta;
 
+  // Cierre de inscripciones: hora de finalización en Colombia (UTC-5)
+  DateTime? fechaFin;
+
+  // Plan B: imágenes completas cargadas desde subcolección events/{id}/imagenes
+  String? imagenPortadaCompleta;
+  String? imagenDetalleCompleta;
+
   Evento({
     required this.id,
     required this.titulo,
@@ -73,12 +80,20 @@ class Evento {
     this.creadoEn,
     this.ubicacion,
     this.direccionResuelta,
+    this.fechaFin,
+    this.imagenPortadaCompleta,
+    this.imagenDetalleCompleta,
   }) : inscripciones = inscripciones ?? [];
 
   List<String> get _partes => fechaCompleta.split(' • ');
   String get hora => _partes.length > 1 ? _partes[1] : '';
   String get anio => _partes.length > 2 ? _partes[2] : '';
-  String get imagenParaDetalle => imagenDetalle ?? imagen;
+  String get imagenParaDetalle =>
+      imagenDetalleCompleta ??
+      imagenPortadaCompleta ??
+      imagenDetalle ??
+      imagen;
+  String get imagenPortadaReal => imagenPortadaCompleta ?? imagen;
   String get fechaCorta => '$dia de $mes $anio';
   String get fechaParaDetalle => fechaLarga.isNotEmpty ? fechaLarga : fechaCorta;
   String get horarioParaDetalle => horario.isNotEmpty ? horario : hora;
@@ -96,6 +111,15 @@ class Evento {
   double? get longitud => ubicacion?.longitude;
   bool get tieneUbicacion => ubicacion != null;
 
+  /// Verifica si el evento ya finalizó según su fechaFin (o estado explícito)
+  bool get haFinalizado {
+    if (estado == 'Finalizado') return true;
+    if (fechaFin != null) {
+      return DateTime.now().toUtc().isAfter(fechaFin!.toUtc());
+    }
+    return false;
+  }
+
   /// Fecha real del evento (null si es un evento de ejemplo sin fecha real).
   DateTime? get fecha => fechaIso.isEmpty ? null : DateTime.tryParse(fechaIso);
 
@@ -111,7 +135,7 @@ class Evento {
         'imagen': imagen,
         'imagenDetalle': imagenDetalle,
         'esHoy': esHoy,
-        'estado': estado,
+        'estado': haFinalizado ? 'Finalizado' : estado,
         'descripcion': descripcion,
         'fechaLarga': fechaLarga,
         'horario': horario,
@@ -128,13 +152,17 @@ class Evento {
         'ratingCantidad': ratingCantidad,
         if (ubicacion != null) 'ubicacion': ubicacion,
         if (direccionResuelta != null) 'direccionResuelta': direccionResuelta,
+        if (fechaFin != null) 'fechaFin': Timestamp.fromDate(fechaFin!),
       };
 
   Map<String, dynamic> toFirestore() {
     final map = toJson();
-    map.remove('inscripciones'); // Se maneja en subcolección inscripciones/{uid}
+    map.remove('inscripciones'); // Se maneja en subcolección inscripciones/{inscripcionId}
     if (fecha != null) {
       map['fecha'] = Timestamp.fromDate(fecha!);
+    }
+    if (fechaFin != null) {
+      map['fechaFin'] = Timestamp.fromDate(fechaFin!);
     }
     map['creadoEn'] = creadoEn != null
         ? Timestamp.fromDate(creadoEn!)
@@ -186,6 +214,11 @@ class Evento {
                   )
                 : null),
         direccionResuelta: j['direccionResuelta'] as String?,
+        fechaFin: j['fechaFin'] is Timestamp
+            ? (j['fechaFin'] as Timestamp).toDate()
+            : (j['fechaFin'] is String
+                ? DateTime.tryParse(j['fechaFin'] as String)
+                : null),
       );
 
   factory Evento.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -195,16 +228,18 @@ class Evento {
 }
 
 class Inscripcion {
-  final String uid;
+  final String id; // ID único automático del documento en inscripciones/{inscripcionId}
+  final String uid; // UID del asistente dueño
   final String eventoId;
   final String nombre;
   final DateTime creadaEn;
   final String precioPagado;
-  final String estado; // "Activa", "Anulada", "Asistio"
-  final String codigo; // código criptográfico único para validación
+  String estado; // "Activa", "Anulada", "Asistio"
+  final String codigo; // código criptográfico único de 24 caracteres para validación
   final DateTime? checkInEn;
 
   Inscripcion({
+    this.id = '',
     required this.uid,
     required this.eventoId,
     required this.nombre,
@@ -240,8 +275,14 @@ class Inscripcion {
             ? doc.reference.parent.parent!.id
             : (j['eventoId'] as String? ?? ''));
 
+    // Soporte para ambos modelos: el nuevo con j['uid'] y el anterior donde doc.id era el uid
+    final uidFinal = (j['uid'] as String?)?.isNotEmpty == true
+        ? (j['uid'] as String)
+        : doc.id;
+
     return Inscripcion(
-      uid: doc.id,
+      id: doc.id,
+      uid: uidFinal,
       eventoId: idPadre,
       nombre: j['nombre'] as String? ?? '',
       creadaEn: j['creadaEn'] is Timestamp

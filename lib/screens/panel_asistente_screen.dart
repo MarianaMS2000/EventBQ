@@ -8,6 +8,7 @@ import '../widgets/dialogo_politica_reembolso.dart';
 import '../widgets/encabezado_usuario.dart';
 import '../widgets/imagen_asset.dart';
 import '../widgets/pantalla_con_barra.dart';
+import '../utils/manejo_errores.dart';
 
 /// "Panel de Asistente": las entradas que compró el usuario.
 /// Se abre desde Mis eventos > Mis Entradas Compradas.
@@ -21,8 +22,8 @@ class PanelAsistenteScreen extends StatefulWidget {
 class _PanelAsistenteScreenState extends State<PanelAsistenteScreen> {
   final _eventoRepo = EventoRepository();
 
-  /// Anular reserva: confirmación -> nota de reembolso -> panel actualizado.
-  Future<void> _anularReserva(Evento evento) async {
+  /// Anular una entrada concreta: confirmación -> nota de reembolso -> panel actualizado.
+  Future<void> _anularReserva(Evento evento, [String? idInscripcion]) async {
     final confirmo = await showDialog<bool>(
       context: context,
       barrierColor: Colors.black,
@@ -38,8 +39,12 @@ class _PanelAsistenteScreenState extends State<PanelAsistenteScreen> {
     );
     if (!mounted) return;
 
-    // Se quita de la lista y se libera el cupo en Firestore con transacción
-    await _eventoRepo.anularEntrada(evento.id);
+    // Se anula únicamente la entrada específica seleccionada y se libera el cupo en Firestore
+    final error = await _eventoRepo.anularEntrada(evento.id, idInscripcion);
+    if (!mounted) return;
+    if (error != null) {
+      mostrarDialogoError(context, error: error);
+    }
   }
 
   @override
@@ -48,7 +53,8 @@ class _PanelAsistenteScreenState extends State<PanelAsistenteScreen> {
   }
 
   Widget _contenido(BuildContext context) {
-    final entradas = _eventoRepo.obtenerEntradasCompradas();
+    final misInscripciones = _eventoRepo.obtenerTodasMisInscripciones();
+    final eventosComprados = _eventoRepo.obtenerEntradasCompradas();
 
     return PantallaConBarra(
       indiceActual: 2, // Mis eventos
@@ -95,7 +101,7 @@ class _PanelAsistenteScreenState extends State<PanelAsistenteScreen> {
                         ),
                       ),
                       const SizedBox(height: 14),
-                      if (entradas.isEmpty)
+                      if (misInscripciones.isEmpty && eventosComprados.isEmpty)
                         const Expanded(
                           child: Center(
                             child: Text(
@@ -105,8 +111,39 @@ class _PanelAsistenteScreenState extends State<PanelAsistenteScreen> {
                             ),
                           ),
                         )
-                      else ...[
-                        ...entradas.map(
+                      else if (misInscripciones.isNotEmpty) ...[
+                        ...misInscripciones.map((insc) {
+                          final e = _eventoRepo.obtenerEventoPorId(insc.eventoId) ??
+                              Evento(
+                                id: insc.eventoId,
+                                titulo: 'Evento',
+                                categoria: 'General',
+                                fechaCompleta: '',
+                                dia: '',
+                                mes: '',
+                                lugar: '',
+                                precio: insc.precioPagado,
+                                imagen: '',
+                              );
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _TarjetaEntrada(
+                              evento: e,
+                              inscripcion: insc,
+                              onVerTicket: () => Navigator.pushNamed(
+                                context,
+                                '/ticket',
+                                arguments: {
+                                  'evento': e,
+                                  'inscripcion': insc,
+                                },
+                              ),
+                              onAnular: () => _anularReserva(e, insc.id),
+                            ),
+                          );
+                        }),
+                      ] else ...[
+                        ...eventosComprados.map(
                           (e) => Padding(
                             padding: const EdgeInsets.only(bottom: 16),
                             child: _TarjetaEntrada(
@@ -135,17 +172,25 @@ class _PanelAsistenteScreenState extends State<PanelAsistenteScreen> {
 
 class _TarjetaEntrada extends StatelessWidget {
   final Evento evento;
+  final Inscripcion? inscripcion;
   final VoidCallback onVerTicket;
   final VoidCallback onAnular;
 
   const _TarjetaEntrada({
     required this.evento,
+    this.inscripcion,
     required this.onVerTicket,
     required this.onAnular,
   });
 
   @override
   Widget build(BuildContext context) {
+    final codigoCorto = inscripcion != null && inscripcion!.codigo.isNotEmpty
+        ? (inscripcion!.codigo.length > 8
+            ? inscripcion!.codigo.substring(0, 8)
+            : inscripcion!.codigo)
+        : '';
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -181,6 +226,17 @@ class _TarjetaEntrada extends StatelessWidget {
                     height: 1.25,
                   ),
                 ),
+                if (codigoCorto.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Ticket #$codigoCorto • ${inscripcion?.estado ?? "Activa"}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colores.azulOscuro,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

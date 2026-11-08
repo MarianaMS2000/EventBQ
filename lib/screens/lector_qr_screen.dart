@@ -28,7 +28,7 @@ class _LectorQrScreenState extends State<LectorQrScreen> {
   void initState() {
     super.initState();
     _scannerCtrl = MobileScannerController(
-      detectionSpeed: DetectionSpeed.normal,
+      detectionSpeed: DetectionSpeed.noDuplicates,
       formats: const [BarcodeFormat.qrCode],
     );
   }
@@ -307,10 +307,10 @@ class _LectorQrScreenState extends State<LectorQrScreen> {
           },
           onDetect: (capture) {
             if (_validando) return;
-            final barcodes = capture.barcodes;
-            for (final barcode in barcodes) {
-              if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
-                _validar(barcode.rawValue!);
+            for (final barcode in capture.barcodes) {
+              final raw = barcode.rawValue?.trim() ?? barcode.displayValue?.trim();
+              if (raw != null && raw.isNotEmpty) {
+                _validar(raw);
                 break;
               }
             }

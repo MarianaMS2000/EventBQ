@@ -45,7 +45,8 @@ String formatoMiles(int n) {
   return n < 0 ? '-$b' : b.toString();
 }
 
-/// Escribe en el evento todos los textos de fecha y hora a partir de valores reales.
+/// Escribe en el evento todos los textos de fecha y hora a partir de valores reales,
+/// calculando la hora de fin precisa en horario de Colombia (UTC-5).
 void aplicarFechaAEvento(
   Evento e,
   DateTime fecha,
@@ -59,7 +60,42 @@ void aplicarFechaAEvento(
   e.fechaCompleta = '$mes ${_dos(fecha.day)} • ${formatoHora(inicio)} • ${fecha.year}';
   e.fechaLarga = '${fecha.day} de ${mesesLargos[fecha.month - 1]} ${fecha.year}';
   e.horario = '${formatoHora(inicio)} - ${formatoHora(cierre)}';
+  e.fechaFin = calcularFechaFinColombia(
+    fecha: fecha,
+    inicio: inicio,
+    cierre: cierre,
+  );
 }
+
+/// Calcula la hora exacta de fin en zona horaria de Colombia (UTC-5 fijo, sin DST).
+/// Si la hora de cierre es menor o igual a la de inicio (ej. 10 PM a 2 AM), cae al día siguiente.
+DateTime calcularFechaFinColombia({
+  required DateTime fecha,
+  required TimeOfDay inicio,
+  required TimeOfDay cierre,
+}) {
+  final inicioMin = inicio.hour * 60 + inicio.minute;
+  final cierreMin = cierre.hour * 60 + cierre.minute;
+  final pasaSiguienteDia = cierreMin <= inicioMin;
+
+  final fechaDia = soloFecha(fecha);
+  final diaFinal = pasaSiguienteDia
+      ? fechaDia.add(const Duration(days: 1))
+      : fechaDia;
+
+  // Colombia es UTC-5, por lo que UTC = Colombia + 5 horas
+  return DateTime.utc(
+    diaFinal.year,
+    diaFinal.month,
+    diaFinal.day,
+    cierre.hour,
+    cierre.minute,
+  ).add(const Duration(hours: 5));
+}
+
+/// Obtiene la hora actual proyectada a la zona horaria de Colombia (UTC-5).
+DateTime get ahoraColombia =>
+    DateTime.now().toUtc().subtract(const Duration(hours: 5));
 
 /// Valida un correo de forma sencilla.
 bool correoValido(String correo) =>

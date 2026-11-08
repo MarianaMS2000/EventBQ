@@ -8,6 +8,7 @@ import '../theme/colores.dart';
 import '../widgets/aviso_exito.dart';
 import '../widgets/imagen_asset.dart';
 import '../widgets/tarjeta_evento_horizontal.dart';
+import '../utils/manejo_errores.dart';
 
 /// Perfil del usuario. Tiene dos modos:
 ///  - lectura (lápiz arriba a la derecha de la tarjeta)
@@ -62,9 +63,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
     setState(() => _guardando = false);
 
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error)),
-      );
+      mostrarDialogoError(context, error: error);
       return;
     }
     setState(() => _editando = false);
@@ -77,18 +76,32 @@ class _PerfilScreenState extends State<PerfilScreen> {
       final foto = await ImagePicker().pickImage(
         source: ImageSource.gallery,
         maxWidth: 400,
-        imageQuality: 65,
+        maxHeight: 400,
+        imageQuality: 60,
       );
       if (foto == null || !mounted) return; // canceló la galería
+
       final bytes = await foto.readAsBytes();
-      await _usuarioRepo.actualizarFoto(ImagenAsset.bytesATexto(bytes));
+      if (bytes.lengthInBytes > 250 * 1024) {
+        if (!mounted) return;
+        mostrarDialogoError(
+          context,
+          titulo: 'Imagen demasiado pesada',
+          error: 'Esa imagen es demasiado pesada. Elige una más liviana.',
+        );
+        return;
+      }
+
+      final error = await _usuarioRepo.actualizarFoto(ImagenAsset.bytesATexto(bytes));
       if (!mounted) return;
+      if (error != null) {
+        mostrarDialogoError(context, error: error);
+        return;
+      }
       mostrarAvisoExito(context, '¡Foto de perfil actualizada!');
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo abrir la galería')),
-      );
+      mostrarDialogoError(context, error: 'No se pudo abrir la galería');
     }
   }
 
@@ -248,7 +261,22 @@ class _PerfilScreenState extends State<PerfilScreen> {
           Positioned.fill(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(34),
-              child: ImagenAsset(ruta: ruta, iconoPlaceholder: Icons.person),
+              child: ruta.isNotEmpty
+                  ? ImagenAsset(ruta: ruta, iconoPlaceholder: Icons.person)
+                  : Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8EEF8),
+                        borderRadius: BorderRadius.circular(34),
+                        border: Border.all(color: Colors.white, width: 3),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.person,
+                          size: 54,
+                          color: Colores.azulOscuro,
+                        ),
+                      ),
+                    ),
             ),
           ),
           Positioned(

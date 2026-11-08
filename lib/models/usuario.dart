@@ -20,7 +20,7 @@ class Usuario {
     required this.usuario,
     required this.correo,
     this.clave = '',
-    this.foto = 'assets/images/avatar.png',
+    this.foto = '',
     this.telefono = '',
     this.rol = '',
     this.miembroDesde = '',
@@ -49,13 +49,19 @@ class Usuario {
             : FieldValue.serverTimestamp(),
       };
 
+  static String limpiarFoto(dynamic val) {
+    final s = (val as String? ?? '').trim();
+    if (s.isEmpty || s.startsWith('assets/') || s.contains('avatar.png')) return '';
+    return s;
+  }
+
   factory Usuario.fromJson(Map<String, dynamic> j, {String? uid}) => Usuario(
         uid: uid ?? (j['uid'] as String? ?? ''),
         nombre: j['nombre'] as String? ?? '',
         usuario: j['usuario'] as String? ?? '',
         correo: j['correo'] as String? ?? '',
         clave: '', // Nunca se lee clave de Firestore
-        foto: j['foto'] as String? ?? 'assets/images/avatar.png',
+        foto: limpiarFoto(j['foto']),
         telefono: j['telefono'] as String? ?? '',
         rol: j['rol'] as String? ?? '',
         miembroDesde: j['miembroDesde'] as String? ?? '',

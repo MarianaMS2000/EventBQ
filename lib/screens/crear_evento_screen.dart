@@ -11,6 +11,7 @@ import '../repositories/evento_repository.dart';
 import '../services/geocodificador_service.dart';
 import '../theme/colores.dart';
 import '../utils/formato.dart';
+import '../utils/manejo_errores.dart';
 import '../widgets/dialogo_evento_publicado.dart';
 import '../widgets/dialogo_limite_alcanzado.dart';
 import '../widgets/imagen_asset.dart';
@@ -137,18 +138,26 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
     try {
       final foto = await _picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 900,
+        maxWidth: 960,
+        maxHeight: 960,
         imageQuality: 60,
       );
       if (foto == null) return; // canceló
       final bytes = await foto.readAsBytes();
+      if (bytes.lengthInBytes > 500 * 1024) {
+        if (!mounted) return;
+        mostrarDialogoError(
+          context,
+          titulo: 'Imagen demasiado pesada',
+          error: 'Esa imagen es demasiado pesada. Elige una más liviana.',
+        );
+        return;
+      }
       if (!mounted) return;
       setState(() => _imagenes.add(bytes));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo abrir la galería')),
-      );
+      mostrarDialogoError(context, error: 'No se pudo abrir la galería');
     }
   }
 
@@ -162,10 +171,6 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
           ruta.settings.name != '/crear-evento' &&
           ruta.settings.name != '/panel-organizador',
     );
-  }
-
-  void _aviso(String texto) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(texto)));
   }
 
   /// Revisa el formulario. Devuelve el mensaje del primer error, o null si todo está bien.
@@ -264,13 +269,13 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
 
     final error = _validar();
     if (error != null) {
-      _aviso(error);
+      mostrarDialogoError(context, error: error);
       return;
     }
 
     setState(() => _publicando = true);
     try {
-      await repo.publicarEvento(_construirEvento());
+      await repo.publicarEvento(_construirEvento(), bytesImagenes: _imagenes);
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -283,7 +288,7 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
     } catch (e) {
       if (!mounted) return;
       debugPrint('Error al publicar evento: $e');
-      _aviso('Error al publicar el evento: $e');
+      mostrarDialogoError(context, error: e);
     } finally {
       if (mounted) setState(() => _publicando = false);
     }

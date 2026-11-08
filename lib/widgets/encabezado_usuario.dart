@@ -34,10 +34,19 @@ class EncabezadoUsuario extends StatelessWidget {
           child: SizedBox(
             width: 44,
             height: 44,
-            child: ImagenAsset(
-              ruta: usuario.foto,
-              iconoPlaceholder: Icons.person,
-            ),
+            child: usuario.foto.isNotEmpty
+                ? ImagenAsset(
+                    ruta: usuario.foto,
+                    iconoPlaceholder: Icons.person,
+                  )
+                : Container(
+                    color: const Color(0xFFE8EEF8),
+                    child: const Icon(
+                      Icons.person,
+                      color: Colores.azulOscuro,
+                      size: 26,
+                    ),
+                  ),
           ),
         ),
         const SizedBox(width: 10),

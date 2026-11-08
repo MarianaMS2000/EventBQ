@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/usuario.dart';
@@ -63,6 +64,44 @@ class UsuarioRepository {
       if (doc.exists) {
         _usuarioActual = Usuario.fromFirestore(doc);
         _cacheUsuarios[uid] = _usuarioActual!;
+        PreferenciasUsuario.guardarTexto(
+          'perfil_cache_$uid',
+          jsonEncode(_usuarioActual!.toJson()),
+        );
+        notificarCambios();
+      } else if (_auth.currentUser != null && _auth.currentUser!.uid == uid) {
+        // El usuario está autenticado pero su documento no existe en users: crearlo
+        final email = _auth.currentUser!.email ?? '';
+        final baseName = _auth.currentUser!.displayName?.isNotEmpty == true
+            ? _auth.currentUser!.displayName!
+            : (email.contains('@') ? email.split('@').first : 'Usuario');
+        final capitalName = baseName.isNotEmpty
+            ? '${baseName[0].toUpperCase()}${baseName.substring(1)}'
+            : 'Usuario';
+        final usernameCandidate = email.contains('@')
+            ? email.split('@').first.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '_')
+            : 'user_${uid.substring(0, 5)}';
+
+        final nuevo = Usuario(
+          uid: uid,
+          nombre: capitalName,
+          usuario: usernameCandidate,
+          correo: email,
+          foto: '',
+          miembroDesde: mesYAnio(DateTime.now()),
+          onboardingCompletado: true,
+          planPro: false,
+          creadoEn: DateTime.now(),
+        );
+        try {
+          await _firestore.collection('users').doc(uid).set(nuevo.toJson());
+        } catch (_) {}
+        _usuarioActual = nuevo;
+        _cacheUsuarios[uid] = nuevo;
+        PreferenciasUsuario.guardarTexto(
+          'perfil_cache_$uid',
+          jsonEncode(nuevo.toJson()),
+        );
         notificarCambios();
       }
     } catch (_) {}
@@ -75,6 +114,10 @@ class UsuarioRepository {
       if (doc.exists) {
         _usuarioActual = Usuario.fromFirestore(doc);
         _cacheUsuarios[uid] = _usuarioActual!;
+        PreferenciasUsuario.guardarTexto(
+          'perfil_cache_$uid',
+          jsonEncode(_usuarioActual!.toJson()),
+        );
         notificarCambios();
       }
     }, onError: (_) {});
@@ -101,16 +144,39 @@ class UsuarioRepository {
         _usuarioActual = _cacheUsuarios[currentUid];
         return _usuarioActual!;
       }
+
+      // Restaurar sincrónicamente desde SharedPreferences para evitar cualquier parpadeo de "Invitado"
+      final perfilGuardado = PreferenciasUsuario.leerTexto('perfil_cache_$currentUid');
+      if (perfilGuardado != null && perfilGuardado.isNotEmpty) {
+        try {
+          final j = jsonDecode(perfilGuardado) as Map<String, dynamic>;
+          _usuarioActual = Usuario.fromJson(j, uid: currentUid);
+          _cacheUsuarios[currentUid] = _usuarioActual!;
+          _iniciarEscucha(currentUid);
+          return _usuarioActual!;
+        } catch (_) {}
+      }
+
       _iniciarEscucha(currentUid);
     }
 
+    final authEmail = _auth.currentUser?.email ?? '';
+    final defaultNombre = _auth.currentUser?.displayName?.isNotEmpty == true
+        ? _auth.currentUser!.displayName!
+        : (authEmail.isNotEmpty && authEmail.contains('@')
+            ? '${authEmail.split("@").first[0].toUpperCase()}${authEmail.split("@").first.substring(1)}'
+            : (currentUid.isNotEmpty ? 'Usuario' : 'Invitado'));
+
+    final defaultUsuario = authEmail.isNotEmpty && authEmail.contains('@')
+        ? authEmail.split('@').first.toLowerCase()
+        : '';
+
     return Usuario(
       uid: currentUid,
-      nombre: _auth.currentUser?.displayName?.isNotEmpty == true
-          ? _auth.currentUser!.displayName!
-          : 'Invitado',
-      usuario: '',
-      correo: _auth.currentUser?.email ?? '',
+      nombre: defaultNombre,
+      usuario: defaultUsuario,
+      correo: authEmail,
+      foto: '',
     );
   }
 
@@ -314,7 +380,7 @@ class UsuarioRepository {
         nombre: nombreOk,
         usuario: usuarioOk,
         correo: correoOk,
-        foto: 'assets/images/avatar.png',
+        foto: '',
         telefono: '',
         rol: '',
         miembroDesde: mesYAnio(DateTime.now()),
@@ -327,8 +393,17 @@ class UsuarioRepository {
 
       await batch.commit();
 
+      // Guardar displayName en Firebase Auth para sincronía instantánea
+      try {
+        await cred.user?.updateDisplayName(nombreOk);
+      } catch (_) {}
+
       // 4. Inicializar sesión y notificación de bienvenida
       PreferenciasUsuario.usuarioActual = uid;
+      PreferenciasUsuario.guardarTexto(
+        'perfil_cache_$uid',
+        jsonEncode(nuevoUsuario.toJson()),
+      );
       await _iniciarEscucha(uid);
       NotificacionRepository().crearBienvenida(uid);
       notificarCambios();
@@ -441,17 +516,32 @@ class UsuarioRepository {
   }
 
   /// Guarda la foto de perfil en Firestore (en formato base64:... o asset).
-  Future<void> actualizarFoto(String foto) async {
+  /// Devuelve null si fue exitoso o un mensaje de error si falló.
+  Future<String?> actualizarFoto(String foto) async {
     final uid = _auth.currentUser?.uid;
-    if (uid == null || uid.isEmpty) return;
+    if (uid == null || uid.isEmpty) return 'No hay una sesión activa';
+
+    // Validación preventiva de peso (< 300 KB)
+    if (foto.length > 300 * 1024) {
+      return 'Esa imagen es demasiado pesada. Elige una más liviana.';
+    }
 
     try {
       await _firestore.collection('users').doc(uid).update({
         'foto': foto,
       });
       _usuarioActual?.foto = foto;
+      if (_usuarioActual != null) {
+        PreferenciasUsuario.guardarTexto(
+          'perfil_cache_$uid',
+          jsonEncode(_usuarioActual!.toJson()),
+        );
+      }
       notificarCambios();
-    } catch (_) {}
+      return null;
+    } catch (_) {
+      return 'No se pudo actualizar la foto de perfil';
+    }
   }
 
   /// Cierra sesión en Firebase Auth, cancela listeners y limpia estado.

@@ -12,6 +12,7 @@ import '../widgets/encabezado_usuario.dart';
 import '../widgets/imagen_asset.dart';
 import '../widgets/mapa_evento.dart';
 import '../widgets/pantalla_con_barra.dart';
+import '../utils/manejo_errores.dart';
 
 /// Recibe el Evento como argumento:
 /// Navigator.pushNamed(context, '/detalle-evento', arguments: evento);
@@ -25,13 +26,35 @@ class DetalleEventoScreen extends StatefulWidget {
 class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
   final _eventoRepo = EventoRepository();
   bool _visitaContada = false;
+  bool _reservando = false;
+  bool _imagenesCargadas = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_visitaContada) return;
-    _visitaContada = true;
-    _eventoRepo.registrarVisualizacion(_obtenerEvento());
+    final ev = _obtenerEvento();
+    if (!_visitaContada) {
+      _visitaContada = true;
+      _eventoRepo.registrarVisualizacion(ev);
+    }
+    if (!_imagenesCargadas) {
+      _imagenesCargadas = true;
+      _cargarImagenesGrandes(ev);
+    }
+  }
+
+  Future<void> _cargarImagenesGrandes(Evento e) async {
+    if (e.imagen.startsWith('base64:') || e.imagenDetalle == 'subcoleccion:detalle') {
+      final p = await _eventoRepo.obtenerImagenGrande(e.id, 'portada');
+      final d = await _eventoRepo.obtenerImagenGrande(e.id, 'detalle');
+      if (!mounted) return;
+      if (p != null || d != null) {
+        setState(() {
+          if (p != null) e.imagenPortadaCompleta = p;
+          if (d != null) e.imagenDetalleCompleta = d;
+        });
+      }
+    }
   }
 
   Evento _obtenerEvento() {
@@ -41,25 +64,44 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
   }
 
   Future<void> _inscribirse(Evento evento) async {
-    // Antes de pedir confirmación, revisa que sí se pueda inscribir.
-    if (_eventoRepo.estaInscrito(evento.id)) {
-      _aviso('Ya estás inscrito a este evento');
+    if (_reservando) return;
+
+    if (evento.haFinalizado) {
+      mostrarDialogoError(
+        context,
+        titulo: 'Evento finalizado',
+        error: 'Este evento ya finalizó.',
+      );
       return;
     }
+
     final confirmado = await mostrarDialogoConfirmarAsistencia(context, evento);
     if (!confirmado || !mounted) return;
-    // Se guarda la inscripción atómica en Firestore con runTransaction
-    final error = await _eventoRepo.agregarEntrada(evento);
-    if (!mounted) return;
-    if (error != null) {
-      _aviso(error);
-      return;
-    }
-    Navigator.pushReplacementNamed(context, '/registro-exitoso', arguments: evento);
-  }
 
-  void _aviso(String texto) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(texto)));
+    setState(() => _reservando = true);
+    try {
+      final error = await _eventoRepo.agregarEntrada(evento);
+      if (!mounted) return;
+      if (error != null) {
+        mostrarDialogoError(context, error: error);
+        return;
+      }
+
+      final ultimaInscripcion = _eventoRepo.obtenerUltimaInscripcion(evento.id);
+      Navigator.pushReplacementNamed(
+        context,
+        '/registro-exitoso',
+        arguments: {
+          'evento': evento,
+          'inscripcion': ultimaInscripcion,
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      mostrarDialogoError(context, error: e);
+    } finally {
+      if (mounted) setState(() => _reservando = false);
+    }
   }
 
   @override
@@ -344,10 +386,19 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
             child: SizedBox(
               width: 46,
               height: 46,
-              child: ImagenAsset(
-                ruta: org.foto,
-                iconoPlaceholder: Icons.person,
-              ),
+              child: org.foto.isNotEmpty
+                  ? ImagenAsset(
+                      ruta: org.foto,
+                      iconoPlaceholder: Icons.person,
+                    )
+                  : Container(
+                      color: const Color(0xFFE8EEF8),
+                      child: const Icon(
+                        Icons.person,
+                        color: Colores.azulOscuro,
+                        size: 26,
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 10),
@@ -448,37 +499,75 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
   }
 
   Widget _botonEntrada(Evento e) {
-    final inscrito = _eventoRepo.estaInscrito(e.id);
+    final finalizado = e.haFinalizado || e.estado == 'Finalizado';
+    final cancelado = e.estado == 'Cancelado';
     final sinCupos = e.cuposTotales > 0 && e.cuposDisponibles <= 0;
-    final texto = inscrito
-        ? 'Ya estás inscrito'
-        : e.estado != 'Activo'
-            ? 'Evento no disponible'
+    final conteoEntradas = _eventoRepo.contarEntradasDeEvento(e.id);
+
+    final texto = finalizado
+        ? 'Este evento ya finalizó'
+        : cancelado
+            ? 'Evento cancelado'
             : sinCupos
                 ? 'Sin cupos'
                 : e.esGratis
                     ? 'Entrada gratis Aquí'
                     : 'Reservar entrada';
-    return Container(
-      width: 250,
-      height: 50,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
-        gradient: const LinearGradient(
-          colors: [Colores.azulOscuro, Color(0xFF1F2E8C)],
-        ),
-      ),
-      child: TextButton(
-        onPressed: () => _inscribirse(e),
-        child: Text(
-          texto,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 17,
-            fontWeight: FontWeight.bold,
+
+    final habilitado = !finalizado && !cancelado && !sinCupos && !_reservando;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (conteoEntradas > 0)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              conteoEntradas == 1
+                  ? 'Ya tienes 1 entrada para este evento'
+                  : 'Ya tienes $conteoEntradas entradas para este evento',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colores.azulOscuro,
+              ),
+            ),
+          ),
+        Container(
+          width: 250,
+          height: 50,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(26),
+            gradient: habilitado
+                ? const LinearGradient(
+                    colors: [Colores.azulOscuro, Color(0xFF1F2E8C)],
+                  )
+                : const LinearGradient(
+                    colors: [Color(0xFF8A93AD), Color(0xFF6B7280)],
+                  ),
+          ),
+          child: TextButton(
+            onPressed: habilitado ? () => _inscribirse(e) : null,
+            child: _reservando
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Text(
+                    texto,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

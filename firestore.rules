@@ -16,7 +16,12 @@ service cloud.firestore {
     }
 
     function isEventCreator(eventoId) {
-      return isSignedIn() && eventDoc(eventoId).data.creadorId == request.auth.uid;
+      return isSignedIn() && (
+        eventDoc(eventoId).data.creadorId == request.auth.uid ||
+        eventDoc(eventoId).data.creadorId == '' ||
+        (exists(/databases/$(database)/documents/usernames/$(eventDoc(eventoId).data.creadorId))
+          && get(/databases/$(database)/documents/usernames/$(eventDoc(eventoId).data.creadorId)).data.uid == request.auth.uid)
+      );
     }
 
     // usernames: Garantiza unicidad y permite lookup en login
@@ -79,8 +84,13 @@ service cloud.firestore {
     }
 
     // Collection group para consultar inscripciones
-    match /{path=**}/inscripciones/{asistenteUid} {
-      allow read: if isSignedIn() && (request.auth.uid == asistenteUid || resource.data.uid == request.auth.uid);
+    match /{path=**}/inscripciones/{inscripcionId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.uid ||
+        request.auth.uid == inscripcionId ||
+        resource.data.creadorId == request.auth.uid ||
+        isEventCreator(resource.data.eventoId)
+      );
     }
 
     // events: Eventos
@@ -129,24 +139,46 @@ service cloud.firestore {
         )
       );
 
-      // Subcolección inscripciones: doc ID es el uid del asistente
-      match /inscripciones/{uid} {
-        allow read: if isOwner(uid) || isEventCreator(eventoId);
+      // Subcolección de imágenes de alta resolución (Plan B para tamaño de documentos < 1MB)
+      match /imagenes/{tipo} {
+        allow read: if isSignedIn();
+        allow write: if isEventCreator(eventoId) || (isSignedIn() && eventDoc(eventoId).data.creadorId == '');
+      }
 
-        // Solo el propio asistente puede crear su inscripción inicial
-        allow create: if isOwner(uid)
-          && request.resource.data.uid == uid
-          && request.resource.data.estado == 'Activa'
+      // Subcolección inscripciones: cada documento es una entrada individual con ID automático
+      match /inscripciones/{inscripcionId} {
+        allow read: if isSignedIn() && (
+          request.auth.uid == resource.data.uid ||
+          request.auth.uid == inscripcionId ||
+          isEventCreator(eventoId)
+        );
+
+        // Creación: solo a nombre propio, con estado Activa, código seguro y antes de fechaFin
+        allow create: if isSignedIn()
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.eventoId == eventoId
+          && request.resource.data.estado in ['Activa', 'activa']
           && request.resource.data.codigo is string
-          && request.resource.data.codigo.size() >= 16;
+          && request.resource.data.codigo.size() >= 16
+          && (!('fechaFin' in eventDoc(eventoId).data) || request.time < eventDoc(eventoId).data.fechaFin);
 
-        // Modificación de inscripción:
-        // 1. El asistente puede anular su propia inscripción activa
-        // 2. El organizador del evento puede hacer check-in (marcar 'Asistio')
-        allow update: if (
-          (isOwner(uid) && request.resource.data.estado == 'Anulada' && resource.data.estado == 'Activa')
+        // Modificación de entrada:
+        // 1. El asistente dueño solo puede anular su entrada activa (estado -> 'Anulada')
+        // 2. El organizador del evento solo puede hacer check-in (estado -> 'Asistio' y checkInEn)
+        allow update: if isSignedIn() && (
+          (
+            (request.auth.uid == resource.data.uid || request.auth.uid == inscripcionId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado'])
+            && resource.data.estado in ['Activa', 'activa']
+            && request.resource.data.estado == 'Anulada'
+          )
           ||
-          (isEventCreator(eventoId) && request.resource.data.estado == 'Asistio')
+          (
+            isEventCreator(eventoId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'checkInEn'])
+            && resource.data.estado in ['Activa', 'activa']
+            && request.resource.data.estado == 'Asistio'
+          )
         );
 
         allow delete: if false;

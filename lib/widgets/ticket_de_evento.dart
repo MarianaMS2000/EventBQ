@@ -11,13 +11,18 @@ import 'ticket_entrada.dart';
 /// La usan "¡Registro Exitoso!" y "¡Tu ticket aquí!".
 class TicketDeEvento extends StatelessWidget {
   final Evento evento;
+  final Inscripcion? inscripcion;
 
-  const TicketDeEvento({super.key, required this.evento});
+  const TicketDeEvento({
+    super.key,
+    required this.evento,
+    this.inscripcion,
+  });
 
   @override
   Widget build(BuildContext context) {
     final e = evento;
-    final insc = EventoRepository().obtenerInscripcion(e.id);
+    final insc = inscripcion ?? EventoRepository().obtenerInscripcion(e.id);
     final codigo = insc?.codigo.isNotEmpty == true ? insc!.codigo : e.id;
     return TicketEntrada(
       alturaSuperior: 225,

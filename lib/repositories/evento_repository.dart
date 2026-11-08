@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart' show TimeOfDay, debugPrint;
@@ -9,6 +10,8 @@ import '../models/evento.dart';
 import '../models/filtros_evento.dart';
 import '../preferences/preferencias_usuario.dart';
 import '../utils/formato.dart';
+import '../utils/manejo_errores.dart';
+import '../widgets/imagen_asset.dart';
 import 'cambios.dart';
 import 'notificacion_repository.dart';
 import 'usuario_repository.dart';
@@ -25,13 +28,19 @@ class EventoRepository {
   EventoRepository._();
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  // Límite anti-abuso de entradas por persona para un mismo evento
+  static const int maxEntradasPorUsuarioPorEvento = 10;
 
   // Caché de eventos en memoria
   final List<Evento> _publicados = [];
   final Map<String, Evento> _mapaEventos = {};
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _eventosSub;
 
-  // Inscripciones del usuario activo: eventoId -> Inscripcion
+  // Lista de todas las entradas del usuario (múltiples por evento permitidas)
+  final List<Inscripcion> _misInscripciones = [];
+  // Mapeo de compatibilidad rápida: eventoId -> última inscripción
   Map<String, Inscripcion>? _mapaInscripciones = {};
   Map<String, Inscripcion> get _inscripciones => _mapaInscripciones ??= {};
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _inscripcionesSub;
@@ -88,12 +97,14 @@ class EventoRepository {
           .where('uid', isEqualTo: uid)
           .snapshots()
           .listen((snap) {
-        _inscripciones.clear();
+        _misInscripciones.clear();
+        _mapaInscripciones?.clear();
 
         for (final doc in snap.docs) {
           final insc = Inscripcion.fromFirestore(doc);
+          _misInscripciones.add(insc);
           if (insc.esActiva) {
-            _inscripciones[insc.eventoId] = insc;
+            _mapaInscripciones?[insc.eventoId] = insc;
           }
         }
 
@@ -126,6 +137,7 @@ class EventoRepository {
     _inscripcionesSub = null;
     _favoritosSub = null;
     _inicializado = false;
+    _misInscripciones.clear();
     _inscripciones.clear();
     _favoritos.clear();
     _calificados.clear();
@@ -133,19 +145,23 @@ class EventoRepository {
 
   Future<void> _cargarInscripcionDirecta(String idEvento, String uid) async {
     try {
-      final doc = await _firestore
+      final snap = await _firestore
           .collection('events')
           .doc(idEvento)
           .collection('inscripciones')
-          .doc(uid)
+          .where('uid', isEqualTo: uid)
           .get();
-      if (doc.exists) {
+
+      for (final doc in snap.docs) {
         final insc = Inscripcion.fromFirestore(doc, eventoId: idEvento);
+        if (!_misInscripciones.any((i) => i.id == insc.id)) {
+          _misInscripciones.add(insc);
+        }
         if (insc.esActiva) {
-          _inscripciones[idEvento] = insc;
-          notificarCambios();
+          _mapaInscripciones?[idEvento] = insc;
         }
       }
+      notificarCambios();
     } catch (_) {}
   }
 
@@ -248,7 +264,7 @@ class EventoRepository {
     return activos.reversed.toList();
   }
 
-  bool _esVisible(Evento e) => e.estado == 'Activo';
+  bool _esVisible(Evento e) => e.estado == 'Activo' && !e.haFinalizado;
 
   List<Evento> obtenerEventosDeOrganizador() {
     _asegurarDatosLocales();
@@ -383,28 +399,68 @@ class EventoRepository {
 
   // ---------- entradas (inscripciones atómicas) ----------
 
-  /// Devuelve los eventos a los que el usuario tiene inscripción activa.
+  /// Devuelve los eventos únicos a los que el usuario tiene entradas activas o asistidas.
   List<Evento> obtenerEntradasCompradas() {
+    final vistos = <String>{};
     final lista = <Evento>[];
+    for (final i in _misInscripciones) {
+      if ((i.esActiva || i.asistio) && vistos.add(i.eventoId)) {
+        final e = obtenerEventoPorId(i.eventoId);
+        if (e != null) lista.add(e);
+      }
+    }
+    // Fallback con mapa rápido
     for (final id in _inscripciones.keys) {
-      final e = obtenerEventoPorId(id);
-      if (e != null && !lista.contains(e)) {
-        lista.add(e);
+      if (vistos.add(id)) {
+        final e = obtenerEventoPorId(id);
+        if (e != null) lista.add(e);
       }
     }
     return lista;
   }
 
-  bool estaInscrito(String idEvento) {
-    if (_inscripciones.containsKey(idEvento)) {
-      return _inscripciones[idEvento]!.esActiva;
-    }
-    return false;
+  /// Retorna todas las entradas del usuario ordenadas por fecha de compra descendente
+  List<Inscripcion> obtenerTodasMisInscripciones() {
+    _asegurarDatosLocales();
+    final lista = _misInscripciones.where((i) => i.esActiva || i.asistio).toList();
+    lista.sort((a, b) => b.creadaEn.compareTo(a.creadaEn));
+    return lista;
   }
 
-  /// Retorna la inscripción activa asociada a un evento (con su código criptográfico).
-  Inscripcion? obtenerInscripcion(String idEvento) {
+  /// Retorna las entradas activas que tiene el usuario actual para un evento específico
+  List<Inscripcion> obtenerMisEntradasDeEvento(String idEvento) {
+    _asegurarDatosLocales();
+    return _misInscripciones
+        .where((i) => i.eventoId == idEvento && (i.esActiva || i.asistio))
+        .toList();
+  }
+
+  /// Número de entradas activas/asistidas que tiene el usuario actual para este evento
+  int contarEntradasDeEvento(String idEvento) {
+    return obtenerMisEntradasDeEvento(idEvento).length;
+  }
+
+  /// Indica si el usuario actual tiene al menos una entrada activa o asistida para el evento
+  bool estaInscrito(String idEvento) {
+    return contarEntradasDeEvento(idEvento) > 0 ||
+        (_inscripciones.containsKey(idEvento) && _inscripciones[idEvento]!.esActiva);
+  }
+
+  /// Retorna una inscripción concreta o la más reciente asociada al evento
+  Inscripcion? obtenerInscripcion(String idEvento, {String? inscripcionId}) {
+    if (inscripcionId != null && inscripcionId.isNotEmpty) {
+      for (final i in _misInscripciones) {
+        if (i.id == inscripcionId) return i;
+      }
+    }
+    final misEntradas = obtenerMisEntradasDeEvento(idEvento);
+    if (misEntradas.isNotEmpty) return misEntradas.first;
     return _inscripciones[idEvento];
+  }
+
+  /// Obtiene la última inscripción adquirida para un evento
+  Inscripcion? obtenerUltimaInscripcion(String idEvento) {
+    return obtenerInscripcion(idEvento);
   }
 
   /// Genera un código criptográficamente seguro de 24 caracteres alfanuméricos.
@@ -416,16 +472,27 @@ class EventoRepository {
 
   /// Transacción atómica de inscripción (runTransaction).
   ///
-  /// Valida que haya sesión, que el evento esté Activo,
-  /// que no esté ya inscrito y que cuposDisponibles > 0.
-  /// Crea events/{id}/inscripciones/{uid} con su código y resta 1 a cuposDisponibles.
+  /// Valida que haya sesión, que el evento esté Activo y no haya finalizado,
+  /// que no supere el límite anti-abuso de 10 entradas y que cuposDisponibles > 0.
+  /// Crea un nuevo documento events/{id}/inscripciones/{autoId} con su propio código
+  /// y resta 1 a cuposDisponibles.
   Future<String?> agregarEntrada(Evento evento) async {
     _asegurarDatosLocales();
-    final uid = _usuarioId;
+    final uid = _auth.currentUser?.uid.isNotEmpty == true
+        ? _auth.currentUser!.uid
+        : _usuarioId;
     if (uid.isEmpty) return 'Inicia sesión para reservar';
 
+    if (evento.creadorId.isNotEmpty && evento.creadorId == uid) {
+      return 'No puedes inscribirte a tu propio evento';
+    }
+
+    if (evento.haFinalizado) {
+      return 'Este evento ya finalizó';
+    }
+
     final eventoRef = _firestore.collection('events').doc(evento.id);
-    final inscripcionRef = eventoRef.collection('inscripciones').doc(uid);
+    final nuevaInscripcionRef = eventoRef.collection('inscripciones').doc();
     final codigo = _generarCodigoSeguro();
 
     try {
@@ -442,24 +509,37 @@ class EventoRepository {
           return 'Este evento ya no está disponible';
         }
 
-        final cuposDisponibles = evData['cuposDisponibles'] as int? ?? 0;
-        if (cuposDisponibles <= 0) {
-          return 'No quedan cupos disponibles';
+        // Validación de fecha de finalización (Capa 2: transacción)
+        final fechaFinTimestamp = evData['fechaFin'] as Timestamp?;
+        if (fechaFinTimestamp != null &&
+            Timestamp.now().compareTo(fechaFinTimestamp) >= 0) {
+          return 'Este evento ya finalizó';
         }
 
-        final inscSnap = await tx.get(inscripcionRef);
-        if (inscSnap.exists) {
-          final inscData = inscSnap.data()!;
-          final estadoInsc = inscData['estado'] as String? ?? '';
-          if (estadoInsc == 'Activa') {
-            return 'Ya estás inscrito a este evento';
-          }
+        final cuposDisponibles = evData['cuposDisponibles'] as int? ?? 0;
+        if (cuposDisponibles <= 0) {
+          return 'Ya no quedan cupos para este evento';
+        }
+
+        // Límite anti-abuso: máximo 10 entradas por usuario por evento
+        final querySnap = await eventoRef
+            .collection('inscripciones')
+            .where('uid', isEqualTo: uid)
+            .get();
+        final activasUsuario = querySnap.docs.where((d) {
+          final st = d.data()['estado'] as String? ?? '';
+          return st == 'Activa' || st == 'Asistio';
+        }).length;
+
+        if (activasUsuario >= maxEntradasPorUsuarioPorEvento) {
+          return 'Llegaste al máximo de entradas para este evento.';
         }
 
         final yo = UsuarioRepository().obtenerUsuarioActual();
 
-        // 1. Guardar documento en subcolección inscripciones/{uid}
-        tx.set(inscripcionRef, {
+        // 1. Guardar documento en subcolección inscripciones/{autoId}
+        tx.set(nuevaInscripcionRef, {
+          'id': nuevaInscripcionRef.id,
           'uid': uid,
           'eventoId': evento.id,
           'nombre': yo.nombre.isNotEmpty ? yo.nombre : 'Asistente',
@@ -483,7 +563,7 @@ class EventoRepository {
             .doc();
         tx.set(notifAsistenteRef, {
           'titulo': 'Tu inscripción fue confirmada',
-          'descripcion': evento.titulo,
+          'descripcion': 'Entrada confirmada para "${evento.titulo}"',
           'tipo': 'Eventos',
           'leida': false,
           'pideCalificacion': false,
@@ -501,7 +581,7 @@ class EventoRepository {
               .doc();
           tx.set(notifOrgRef, {
             'titulo': 'Nueva inscripción',
-            'descripcion': '${yo.nombre} se inscribió a "${evento.titulo}"',
+            'descripcion': '${yo.nombre} compró una entrada para "${evento.titulo}"',
             'tipo': 'Organizador',
             'leida': false,
             'pideCalificacion': false,
@@ -517,7 +597,7 @@ class EventoRepository {
         return errorTransaccion;
       }
 
-      // Actualizar de inmediato en caché local y memoria
+      // Actualizar de inmediato en memoria y caché local
       evento.cuposDisponibles = (evento.cuposDisponibles - 1).clamp(0, evento.cuposTotales);
       if (_mapaEventos.containsKey(evento.id)) {
         _mapaEventos[evento.id]!.cuposDisponibles = evento.cuposDisponibles;
@@ -525,6 +605,7 @@ class EventoRepository {
 
       final yo = UsuarioRepository().obtenerUsuarioActual();
       final inscLocal = Inscripcion(
+        id: nuevaInscripcionRef.id,
         uid: uid,
         eventoId: evento.id,
         nombre: yo.nombre,
@@ -532,7 +613,8 @@ class EventoRepository {
         precioPagado: evento.precio,
         codigo: codigo,
       );
-      _inscripciones[evento.id] = inscLocal;
+      _misInscripciones.insert(0, inscLocal);
+      _mapaInscripciones?[evento.id] = inscLocal;
       notificarCambios();
       return null;
     } catch (e) {
@@ -541,17 +623,30 @@ class EventoRepository {
     }
   }
 
-  /// Transacción atómica para anular la inscripción.
+  /// Transacción atómica para anular una entrada específica.
   ///
   /// Marca la inscripción como 'Anulada' (preservando historial)
   /// y libera el cupo (+1 a cuposDisponibles sin superar cuposTotales).
-  Future<String?> anularEntrada(String idEvento) async {
+  Future<String?> anularEntrada(String idEvento, [String? idInscripcion]) async {
     _asegurarDatosLocales();
-    final uid = _usuarioId;
+    final uid = _auth.currentUser?.uid.isNotEmpty == true
+        ? _auth.currentUser!.uid
+        : _usuarioId;
     if (uid.isEmpty) return 'No hay una sesión activa';
 
     final eventoRef = _firestore.collection('events').doc(idEvento);
-    final inscripcionRef = eventoRef.collection('inscripciones').doc(uid);
+    DocumentReference<Map<String, dynamic>> inscripcionRef;
+
+    if (idInscripcion != null && idInscripcion.isNotEmpty) {
+      inscripcionRef = eventoRef.collection('inscripciones').doc(idInscripcion);
+    } else {
+      final deEvento = obtenerMisEntradasDeEvento(idEvento);
+      if (deEvento.isNotEmpty && deEvento.first.id.isNotEmpty) {
+        inscripcionRef = eventoRef.collection('inscripciones').doc(deEvento.first.id);
+      } else {
+        inscripcionRef = eventoRef.collection('inscripciones').doc(uid);
+      }
+    }
 
     try {
       final error = await _firestore.runTransaction<String?>((tx) async {
@@ -595,7 +690,16 @@ class EventoRepository {
         ev.cuposDisponibles = (ev.cuposDisponibles + 1).clamp(0, ev.cuposTotales);
       }
 
-      _inscripciones.remove(idEvento);
+      _misInscripciones.removeWhere((i) => i.id == inscripcionRef.id);
+      if (_mapaInscripciones?[idEvento]?.id == inscripcionRef.id) {
+        final restantes = obtenerMisEntradasDeEvento(idEvento);
+        if (restantes.isNotEmpty) {
+          _mapaInscripciones?[idEvento] = restantes.first;
+        } else {
+          _mapaInscripciones?.remove(idEvento);
+        }
+      }
+
       notificarCambios();
       return null;
     } catch (e) {
@@ -606,9 +710,23 @@ class EventoRepository {
 
   // ---------- crear / modificar / eliminar eventos ----------
 
-  Future<void> publicarEvento(Evento evento) async {
+  /// Publica un evento garantizando que el documento no exceda 1 MB (Plan B).
+  ///
+  /// Guarda en el documento principal solo una miniatura (< 35 KB) y traslada
+  /// las imágenes completas a subcolecciones events/{id}/imagenes.
+  Future<void> publicarEvento(
+    Evento evento, {
+    List<Uint8List> bytesImagenes = const [],
+  }) async {
     _asegurarDatosLocales();
-    final uid = _usuarioId;
+    final uid = _auth.currentUser?.uid.isNotEmpty == true
+        ? _auth.currentUser!.uid
+        : _usuarioId;
+
+    if (uid.isEmpty) {
+      throw const ValidacionException('Debes iniciar sesión para publicar un evento.');
+    }
+
     evento.creadorId = uid;
     evento.estado = 'Activo';
     evento.cuposDisponibles = evento.cuposTotales;
@@ -617,9 +735,59 @@ class EventoRepository {
     evento.ratingCantidad = 0;
     evento.creadoEn = DateTime.now();
 
-    await _firestore.collection('events').doc(evento.id).set(evento.toFirestore());
+    // Plan B: Manejo de imágenes de alta resolución en subcolecciones
+    String? fullPortada;
+    String? fullDetalle;
 
-    // Asegurar que no se inserte duplicado
+    if (bytesImagenes.isNotEmpty) {
+      fullPortada = ImagenAsset.bytesATexto(bytesImagenes[0]);
+      if (bytesImagenes.length > 1) {
+        fullDetalle = ImagenAsset.bytesATexto(bytesImagenes[1]);
+      }
+    }
+
+    // Miniatura pequeña (< 35 KB) para el documento principal
+    if (fullPortada != null) {
+      evento.imagen = fullPortada;
+      evento.imagenDetalle = fullDetalle != null ? 'subcoleccion:detalle' : null;
+    }
+
+    final dataDoc = evento.toFirestore();
+    final bytesEstimados = estimarTamanoDocumentoFirestore(dataDoc);
+    if (bytesEstimados > 850 * 1024) {
+      throw const ValidacionException(
+        'El evento contiene demasiada información o imágenes muy pesadas. Elige imágenes más livianas.',
+        titulo: 'Imagen demasiado pesada',
+      );
+    }
+
+    // 1. Guardar documento principal del evento en Firestore
+    await _firestore.collection('events').doc(evento.id).set(dataDoc);
+
+    // 2. Guardar subcolección de imágenes de alta resolución si existen
+    if (fullPortada != null) {
+      try {
+        await _firestore
+            .collection('events')
+            .doc(evento.id)
+            .collection('imagenes')
+            .doc('portada')
+            .set({'data': fullPortada, 'tipo': 'portada'});
+
+        if (fullDetalle != null) {
+          await _firestore
+              .collection('events')
+              .doc(evento.id)
+              .collection('imagenes')
+              .doc('detalle')
+              .set({'data': fullDetalle, 'tipo': 'detalle'});
+        }
+      } catch (e) {
+        debugPrint('Aviso al guardar imágenes en subcolección: $e');
+      }
+    }
+
+    // Asegurar que no se inserte duplicado en listas en memoria
     _mapaEventos[evento.id] = evento;
     _publicados.removeWhere((p) => p.id == evento.id);
     _publicados.insert(0, evento);
@@ -627,8 +795,27 @@ class EventoRepository {
     notificarCambios();
   }
 
-  /// Notifica a todos los inscritos activos mediante WriteBatch (hasta 500 ops)
-  Future<void> _notificarInscritosActivos(
+  /// Carga la imagen de alta resolución desde la subcolección del evento (Plan B)
+  Future<String?> obtenerImagenGrande(String eventoId, String tipo) async {
+    try {
+      final doc = await _firestore
+          .collection('events')
+          .doc(eventoId)
+          .collection('imagenes')
+          .doc(tipo)
+          .get();
+      if (doc.exists && doc.data() != null) {
+        return doc.data()!['data'] as String?;
+      }
+    } catch (e) {
+      debugPrint('No se pudo cargar imagen grande ($tipo): $e');
+    }
+    return null;
+  }
+
+  /// Notifica a todos los compradores activos de un evento con una sola notificación por usuario,
+  /// respetando el límite de 500 operaciones por WriteBatch de Firestore.
+  Future<void> _notificarCompradoresActivos(
     String idEvento, {
     required String titulo,
     required String descripcion,
@@ -643,27 +830,47 @@ class EventoRepository {
 
       if (snap.docs.isEmpty) return;
 
-      final batch = _firestore.batch();
+      final uidsUnicos = <String>{};
       for (final doc in snap.docs) {
-        final asistenteUid = doc.id;
-        final notifRef = _firestore
-            .collection('users')
-            .doc(asistenteUid)
-            .collection('notificaciones')
-            .doc();
-        batch.set(notifRef, {
-          'titulo': titulo,
-          'descripcion': descripcion,
-          'tipo': 'Eventos',
-          'leida': false,
-          'pideCalificacion': false,
-          'idEvento': idEvento,
-          'creadaEn': FieldValue.serverTimestamp(),
-        });
+        final data = doc.data();
+        final uid = (data['uid'] as String?)?.isNotEmpty == true
+            ? data['uid'] as String
+            : doc.id;
+        if (uid.isNotEmpty) {
+          uidsUnicos.add(uid);
+        }
       }
-      await batch.commit();
+
+      if (uidsUnicos.isEmpty) return;
+
+      final listaUids = uidsUnicos.toList();
+      const int tamanoBatch = 450;
+      for (int i = 0; i < listaUids.length; i += tamanoBatch) {
+        final lote = listaUids.sublist(
+          i,
+          (i + tamanoBatch > listaUids.length) ? listaUids.length : i + tamanoBatch,
+        );
+        final batch = _firestore.batch();
+        for (final asistenteUid in lote) {
+          final notifRef = _firestore
+              .collection('users')
+              .doc(asistenteUid)
+              .collection('notificaciones')
+              .doc();
+          batch.set(notifRef, {
+            'titulo': titulo,
+            'descripcion': descripcion,
+            'tipo': 'Eventos',
+            'leida': false,
+            'pideCalificacion': false,
+            'idEvento': idEvento,
+            'creadaEn': FieldValue.serverTimestamp(),
+          });
+        }
+        await batch.commit();
+      }
     } catch (e) {
-      debugPrint('Error al notificar inscritos: $e');
+      debugPrint('Error al notificar compradores: $e');
     }
   }
 
@@ -676,7 +883,7 @@ class EventoRepository {
 
     try {
       await _firestore.collection('events').doc(idEvento).update({'estado': 'Cancelado'});
-      await _notificarInscritosActivos(
+      await _notificarCompradoresActivos(
         idEvento,
         titulo: 'Evento cancelado',
         descripcion: '"${ev.titulo}" fue cancelado por el organizador',
@@ -688,7 +895,7 @@ class EventoRepository {
     notificarCambios();
   }
 
-  /// Reprograma el evento en Firestore y notifica a todos los inscritos activos.
+  /// Reprograma el evento en Firestore y notifica con un único aviso a los compradores.
   Future<void> reprogramarEvento(
     String idEvento,
     DateTime fecha,
@@ -703,7 +910,7 @@ class EventoRepository {
 
     try {
       await _firestore.collection('events').doc(idEvento).update(ev.toFirestore());
-      await _notificarInscritosActivos(
+      await _notificarCompradoresActivos(
         idEvento,
         titulo: 'Evento reprogramado',
         descripcion: '"${ev.titulo}" ahora es el ${ev.fechaLarga}, ${ev.horario}',
@@ -715,18 +922,42 @@ class EventoRepository {
     notificarCambios();
   }
 
-  /// Elimina el evento de Firestore y limpia el caché.
+  /// Elimina el evento de Firestore borrando también sus subcolecciones (entradas, imágenes, calificaciones)
   Future<void> eliminarEvento(String idEvento) async {
     _asegurarDatosLocales();
-    _publicados.removeWhere((p) => p.id == idEvento);
-    _mapaEventos.remove(idEvento);
-    _inscripciones.remove(idEvento);
+    final evRef = _firestore.collection('events').doc(idEvento);
 
     try {
-      await _firestore.collection('events').doc(idEvento).delete();
+      // 1. Borrar subcolección de inscripciones
+      final inscSnap = await evRef.collection('inscripciones').get();
+      final batch = _firestore.batch();
+      for (final d in inscSnap.docs) {
+        batch.delete(d.reference);
+      }
+
+      // 2. Borrar subcolección de imágenes
+      final imgSnap = await evRef.collection('imagenes').get();
+      for (final d in imgSnap.docs) {
+        batch.delete(d.reference);
+      }
+
+      // 3. Borrar subcolección de calificaciones
+      final califSnap = await evRef.collection('calificaciones').get();
+      for (final d in califSnap.docs) {
+        batch.delete(d.reference);
+      }
+
+      // 4. Borrar documento del evento
+      batch.delete(evRef);
+      await batch.commit();
     } catch (e) {
-      debugPrint('Error en eliminarEvento: $e');
+      debugPrint('Error al eliminar evento: $e');
     }
+
+    _publicados.removeWhere((p) => p.id == idEvento);
+    _mapaEventos.remove(idEvento);
+    _misInscripciones.removeWhere((i) => i.eventoId == idEvento);
+    _mapaInscripciones?.remove(idEvento);
 
     notificarCambios();
   }
@@ -947,6 +1178,60 @@ class EventoRepository {
             }
           }
         }
+
+        // C) Búsqueda global por collectionGroup('inscripciones')
+        if (inscRef == null) {
+          try {
+            final cgSnap = await _firestore
+                .collectionGroup('inscripciones')
+                .where('codigo', isEqualTo: codigo)
+                .limit(1)
+                .get();
+            if (cgSnap.docs.isNotEmpty) {
+              final doc = cgSnap.docs.first;
+              inscRef = doc.reference;
+              final parentEvento = doc.reference.parent.parent;
+              if (parentEvento != null) {
+                eventoRef = parentEvento;
+                eventoId = parentEvento.id;
+              }
+            }
+          } catch (e) {
+            debugPrint('Búsqueda por collectionGroup inscripciones: $e');
+          }
+        }
+
+        // D) Respaldo en inscripciones locales en memoria / caché
+        if (inscRef == null) {
+          for (final mInsc in _misInscripciones) {
+            if (mInsc.codigo.trim().toUpperCase() == codigo) {
+              final ev = _mapaEventos[mInsc.eventoId];
+              final titulo = ev?.titulo ?? 'Evento';
+              final estadoNorm = mInsc.estado.trim().toLowerCase();
+              if (estadoNorm == 'asistio') {
+                return ResultadoValidacion(
+                  exito: false,
+                  mensaje: 'Esta entrada YA FUE USADA',
+                  nombreAsistente: mInsc.nombre,
+                );
+              }
+              if (estadoNorm == 'anulada') {
+                return ResultadoValidacion(
+                  exito: false,
+                  mensaje: 'Esta entrada fue anulada',
+                  nombreAsistente: mInsc.nombre,
+                );
+              }
+              mInsc.estado = 'Asistio';
+              notificarCambios();
+              return ResultadoValidacion(
+                exito: true,
+                mensaje: '¡Acceso Concedido a "$titulo"!',
+                nombreAsistente: mInsc.nombre,
+              );
+            }
+          }
+        }
       }
 
       if (inscRef == null || eventoRef == null) {
@@ -970,7 +1255,16 @@ class EventoRepository {
         final evData = evSnap.data()!;
         final tituloEvento = evData['titulo'] as String? ?? 'Evento';
         final creadorId = evData['creadorId'] as String? ?? '';
-        if (creadorId.isNotEmpty && creadorId != uidOrganizador) {
+        final uActual = UsuarioRepository().obtenerUsuarioActual();
+        final authUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+        final esCreador = creadorId.isEmpty ||
+            creadorId == uidOrganizador ||
+            (authUid.isNotEmpty && creadorId == authUid) ||
+            (uActual.usuario.isNotEmpty && creadorId == uActual.usuario) ||
+            (PreferenciasUsuario.usuarioActual.isNotEmpty &&
+                creadorId == PreferenciasUsuario.usuarioActual);
+
+        if (!esCreador) {
           return ResultadoValidacion(
             exito: false,
             mensaje: 'No eres el organizador de este evento',
@@ -998,7 +1292,8 @@ class EventoRepository {
           );
         }
 
-        if (estado == 'Anulada') {
+        final estadoNorm = estado.trim().toLowerCase();
+        if (estadoNorm == 'anulada') {
           return ResultadoValidacion(
             exito: false,
             mensaje: 'Esta entrada fue anulada',
@@ -1006,7 +1301,7 @@ class EventoRepository {
           );
         }
 
-        if (estado == 'Asistio') {
+        if (estadoNorm == 'asistio') {
           final checkInTimestamp = inscData['checkInEn'] as Timestamp?;
           final dt = checkInTimestamp?.toDate();
           final fechaHora = dt != null
@@ -1020,7 +1315,7 @@ class EventoRepository {
           );
         }
 
-        if (estado != 'Activa') {
+        if (estadoNorm != 'activa') {
           return ResultadoValidacion(
             exito: false,
             mensaje: 'Entrada no disponible ($estado)',
@@ -1038,12 +1333,19 @@ class EventoRepository {
           exito: true,
           mensaje: '¡Acceso Concedido a "$tituloEvento"!',
           nombreAsistente: nombre,
-          checkInEn: DateTime.now(),
-          codigo: codigo,
         );
       });
 
-      notificarCambios();
+      if (resultado.exito) {
+        for (final i in _misInscripciones) {
+          if (i.codigo.trim().toUpperCase() == codigo) {
+            i.estado = 'Asistio';
+            break;
+          }
+        }
+        notificarCambios();
+      }
+
       return resultado;
     } catch (e) {
       debugPrint('Error en validarAcceso: $e');

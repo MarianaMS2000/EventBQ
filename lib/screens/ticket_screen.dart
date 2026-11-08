@@ -6,6 +6,7 @@ import '../theme/colores.dart';
 import '../widgets/logo_flor.dart';
 import '../widgets/pantalla_con_barra.dart';
 import '../widgets/ticket_de_evento.dart';
+import '../utils/manejo_errores.dart';
 
 /// "¡Tu ticket aquí!": la entrada con su QR.
 /// Se abre desde el Panel de Asistente con el botón "Ver ticket":
@@ -20,19 +21,14 @@ class TicketScreen extends StatefulWidget {
 class _TicketScreenState extends State<TicketScreen> {
   bool _generandoPdf = false;
 
-  Future<void> _descargarPdf(Evento e) async {
+  Future<void> _descargarPdf(Evento e, Inscripcion? insc) async {
     if (_generandoPdf) return;
     setState(() => _generandoPdf = true);
     try {
-      await TicketPdfService.descargarTicketPdf(evento: e);
+      await TicketPdfService.descargarTicketPdf(evento: e, inscripcion: insc);
     } catch (err) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(err.toString().replaceAll('Exception: ', '')),
-          backgroundColor: const Color(0xFF8E0B12),
-        ),
-      );
+      mostrarDialogoError(context, error: err);
     } finally {
       if (mounted) setState(() => _generandoPdf = false);
     }
@@ -41,8 +37,16 @@ class _TicketScreenState extends State<TicketScreen> {
   @override
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments;
-    final Evento e =
-        args is Evento ? args : EventoRepository().obtenerEventosExplorar()[2];
+    Evento e;
+    Inscripcion? insc;
+    if (args is Evento) {
+      e = args;
+    } else if (args is Map<String, dynamic>) {
+      e = args['evento'] as Evento;
+      insc = args['inscripcion'] as Inscripcion?;
+    } else {
+      e = EventoRepository().obtenerEventosExplorar()[2];
+    }
 
     return PantallaConBarra(
       indiceActual: 2, // Mis eventos
@@ -71,7 +75,7 @@ class _TicketScreenState extends State<TicketScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                TicketDeEvento(evento: e),
+                TicketDeEvento(evento: e, inscripcion: insc),
                 const SizedBox(height: 14),
 
                 // Botón "Descargar PDF"
@@ -79,7 +83,7 @@ class _TicketScreenState extends State<TicketScreen> {
                   width: double.infinity,
                   height: 46,
                   child: ElevatedButton.icon(
-                    onPressed: _generandoPdf ? null : () => _descargarPdf(e),
+                    onPressed: _generandoPdf ? null : () => _descargarPdf(e, insc),
                     icon: _generandoPdf
                         ? const SizedBox(
                             width: 18,
