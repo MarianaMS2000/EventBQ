@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:image_picker/image_picker.dart';
@@ -14,7 +15,6 @@ import '../utils/formato.dart';
 import '../utils/manejo_errores.dart';
 import '../widgets/dialogo_evento_publicado.dart';
 import '../widgets/dialogo_limite_alcanzado.dart';
-import '../widgets/imagen_asset.dart';
 import '../widgets/mapa_evento.dart';
 import '../widgets/pantalla_con_barra.dart';
 
@@ -208,12 +208,12 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
   /// Arma el Evento con lo que escribió el organizador.
   Evento _construirEvento() {
     final valor = _gratis ? 0.0 : (parsearPrecio(_precioCtrl.text) ?? 0.0);
-    final imagenes = _imagenes.map(ImagenAsset.bytesATexto).toList();
     final incluye = _incluyeCtrl.text
         .split('\n')
         .map((l) => l.trim())
         .where((l) => l.isNotEmpty)
         .toList();
+    final authUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final e = Evento(
       id: 'u${DateTime.now().microsecondsSinceEpoch}',
       titulo: _nombreCtrl.text.trim(),
@@ -224,12 +224,13 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
       lugar: _ubicacionCtrl.text.trim(),
       precio: formatoPrecio(valor),
       precioValor: valor,
-      imagen: imagenes.isNotEmpty ? imagenes[0] : '',
-      imagenDetalle: imagenes.length > 1 ? imagenes[1] : null,
+      imagen: '',
+      imagenDetalle: null,
       descripcion: _sobreCtrl.text.trim(),
       incluye: incluye,
       cuposDisponibles: _aforo,
       cuposTotales: _aforo,
+      creadorId: authUid,
       ubicacion: GeoPoint(_puntoMapa.latitude, _puntoMapa.longitude),
       direccionResuelta: _direccionResuelta,
     );
@@ -270,6 +271,16 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
     final error = _validar();
     if (error != null) {
       mostrarDialogoError(context, error: error);
+      return;
+    }
+
+    final authUser = FirebaseAuth.instance.currentUser;
+    if (authUser == null) {
+      mostrarDialogoError(
+        context,
+        titulo: 'Sesión requerida',
+        error: 'Debes iniciar sesión con tu cuenta para publicar un evento.',
+      );
       return;
     }
 

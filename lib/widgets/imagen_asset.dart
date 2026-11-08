@@ -35,6 +35,9 @@ class ImagenAsset extends StatelessWidget {
   static String bytesATexto(Uint8List bytes) =>
       '$_prefijo${base64Encode(bytes)}';
 
+  /// Convierte el texto guardado de vuelta a bytes.
+  static Uint8List? textoABytes(String ruta) => _bytes(ruta);
+
   static Uint8List? _bytes(String ruta) {
     if (!ruta.startsWith(_prefijo)) return null;
     return _cache.putIfAbsent(

@@ -9,6 +9,7 @@ import '../data/datos_simulados.dart';
 import '../models/evento.dart';
 import '../models/filtros_evento.dart';
 import '../preferences/preferencias_usuario.dart';
+import '../utils/compresion_imagen.dart';
 import '../utils/formato.dart';
 import '../utils/manejo_errores.dart';
 import '../widgets/imagen_asset.dart';
@@ -747,9 +748,18 @@ class EventoRepository {
     }
 
     // Miniatura pequeña (< 35 KB) para el documento principal
-    if (fullPortada != null) {
-      evento.imagen = fullPortada;
+    if (bytesImagenes.isNotEmpty) {
+      final miniatura = await generarMiniaturaBase64(bytesImagenes[0], maxAncho: 360);
+      evento.imagen = miniatura;
       evento.imagenDetalle = fullDetalle != null ? 'subcoleccion:detalle' : null;
+    } else if (evento.imagen.startsWith('base64:')) {
+      // Si la imagen venía en base64 en el objeto evento, asegurar miniatura
+      final bytes = ImagenAsset.textoABytes(evento.imagen);
+      if (bytes != null && bytes.lengthInBytes > 35 * 1024) {
+        fullPortada = evento.imagen;
+        evento.imagen = await generarMiniaturaBase64(bytes, maxAncho: 360);
+        evento.imagenDetalle = null;
+      }
     }
 
     final dataDoc = evento.toFirestore();
