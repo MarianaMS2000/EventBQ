@@ -33,7 +33,7 @@ class Usuario {
   /// Si aún no tiene UID (caso legado/invitado), retorna el usuario en minúsculas.
   String get id => uid.isNotEmpty ? uid : usuario.trim().toLowerCase();
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toFirestore() => {
         'uid': uid,
         'nombre': nombre,
         'usuario': usuario.trim().toLowerCase(),
@@ -47,6 +47,20 @@ class Usuario {
         'creadoEn': creadoEn != null
             ? Timestamp.fromDate(creadoEn!)
             : FieldValue.serverTimestamp(),
+      };
+
+  Map<String, dynamic> toJson() => {
+        'uid': uid,
+        'nombre': nombre,
+        'usuario': usuario.trim().toLowerCase(),
+        'correo': correo.trim().toLowerCase(),
+        'foto': foto,
+        'telefono': telefono,
+        'rol': rol,
+        'miembroDesde': miembroDesde,
+        'onboardingCompletado': onboardingCompletado,
+        'planPro': planPro,
+        'creadoEn': creadoEn?.toIso8601String(),
       };
 
   static String limpiarFoto(dynamic val) {

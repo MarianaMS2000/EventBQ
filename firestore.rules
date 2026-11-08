@@ -33,7 +33,10 @@ service cloud.firestore {
       allow create: if isSignedIn() 
         && request.resource.data.uid == request.auth.uid 
         && request.resource.data.correo is string;
-      allow update, delete: if false;
+      allow update: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && resource.data.correo == request.resource.data.correo;
+      allow delete: if false;
     }
 
     // users: Perfiles de usuario

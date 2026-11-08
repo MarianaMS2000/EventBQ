@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/usuario.dart';
 import '../preferences/preferencias_usuario.dart';
 import '../utils/formato.dart';
@@ -94,7 +95,7 @@ class UsuarioRepository {
           creadoEn: DateTime.now(),
         );
         try {
-          await _firestore.collection('users').doc(uid).set(nuevo.toJson());
+          await _firestore.collection('users').doc(uid).set(nuevo.toFirestore());
         } catch (_) {}
         _usuarioActual = nuevo;
         _cacheUsuarios[uid] = nuevo;
@@ -351,13 +352,19 @@ class UsuarioRepository {
       final usernameDoc =
           await _firestore.collection('usernames').doc(usuarioOk).get();
       if (usernameDoc.exists) {
-        return 'Ese usuario ya está registrado';
+        final correoRegistrado =
+            (usernameDoc.data()?['correo'] as String? ?? '').toLowerCase();
+        // Si no es el mismo correo intentando registrarse, está ocupado por otra persona
+        if (correoRegistrado.isNotEmpty && correoRegistrado != correoOk) {
+          return 'Ese usuario ya está registrado';
+        }
       }
     } catch (e) {
       return 'Error de conexión al verificar el usuario';
     }
 
     UserCredential? cred;
+    bool batchGuardado = false;
     try {
       // 2. Crear la cuenta en Firebase Auth
       cred = await _auth.createUserWithEmailAndPassword(
@@ -389,9 +396,10 @@ class UsuarioRepository {
         creadoEn: DateTime.now(),
       );
 
-      batch.set(_firestore.collection('users').doc(uid), nuevoUsuario.toJson());
+      batch.set(_firestore.collection('users').doc(uid), nuevoUsuario.toFirestore());
 
       await batch.commit();
+      batchGuardado = true;
 
       // Guardar displayName en Firebase Auth para sincronía instantánea
       try {
@@ -400,12 +408,20 @@ class UsuarioRepository {
 
       // 4. Inicializar sesión y notificación de bienvenida
       PreferenciasUsuario.usuarioActual = uid;
-      PreferenciasUsuario.guardarTexto(
-        'perfil_cache_$uid',
-        jsonEncode(nuevoUsuario.toJson()),
-      );
+      try {
+        PreferenciasUsuario.guardarTexto(
+          'perfil_cache_$uid',
+          jsonEncode(nuevoUsuario.toJson()),
+        );
+      } catch (e) {
+        debugPrint('Aviso al guardar perfil_cache: $e');
+      }
+
       await _iniciarEscucha(uid);
-      NotificacionRepository().crearBienvenida(uid);
+      try {
+        NotificacionRepository().crearBienvenida(uid);
+      } catch (_) {}
+
       notificarCambios();
       return null;
     } on FirebaseAuthException catch (e) {
@@ -429,13 +445,16 @@ class UsuarioRepository {
           return e.message ?? 'Error al registrar la cuenta';
       }
     } catch (e) {
-      // Rollback: si Firestore falló, borramos el usuario creado en Auth
-      if (cred?.user != null) {
+      debugPrint('Error en registro: $e');
+      // Rollback solo si el batch en Firestore no se completó
+      if (!batchGuardado && cred?.user != null) {
         try {
           await cred!.user!.delete();
         } catch (_) {}
+        return 'Error al guardar los datos de usuario. Intenta nuevamente';
       }
-      return 'Error al guardar los datos de usuario. Intenta nuevamente';
+      // Si el batch se guardó pero falló algo secundario, la cuenta es válida
+      return null;
     }
   }
 
