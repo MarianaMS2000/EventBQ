@@ -13,6 +13,7 @@ class Usuario {
   bool onboardingCompletado;
   bool planPro;
   DateTime? creadoEn;
+  String? fcmToken;
 
   Usuario({
     this.uid = '',
@@ -27,6 +28,7 @@ class Usuario {
     this.onboardingCompletado = false,
     this.planPro = false,
     this.creadoEn,
+    this.fcmToken,
   });
 
   /// Identificador único: con Firebase es el UID de Auth.
@@ -44,6 +46,7 @@ class Usuario {
         'miembroDesde': miembroDesde,
         'onboardingCompletado': onboardingCompletado,
         'planPro': planPro,
+        if (fcmToken != null) 'fcmToken': fcmToken,
         'creadoEn': creadoEn != null
             ? Timestamp.fromDate(creadoEn!)
             : FieldValue.serverTimestamp(),
@@ -60,6 +63,7 @@ class Usuario {
         'miembroDesde': miembroDesde,
         'onboardingCompletado': onboardingCompletado,
         'planPro': planPro,
+        if (fcmToken != null) 'fcmToken': fcmToken,
         'creadoEn': creadoEn?.toIso8601String(),
       };
 
@@ -81,6 +85,7 @@ class Usuario {
         miembroDesde: j['miembroDesde'] as String? ?? '',
         onboardingCompletado: j['onboardingCompletado'] as bool? ?? false,
         planPro: j['planPro'] as bool? ?? false,
+        fcmToken: j['fcmToken'] as String?,
         creadoEn: j['creadoEn'] is Timestamp
             ? (j['creadoEn'] as Timestamp).toDate()
             : (j['creadoEn'] is String

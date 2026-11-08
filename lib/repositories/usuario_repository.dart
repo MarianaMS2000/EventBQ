@@ -9,6 +9,7 @@ import '../utils/formato.dart';
 import 'cambios.dart';
 import 'evento_repository.dart';
 import 'notificacion_repository.dart';
+import '../services/push_notification_service.dart';
 
 /// Repositorio de usuarios conectado a Firebase (Auth + Firestore).
 ///
@@ -40,6 +41,7 @@ class UsuarioRepository {
       if (user != null) {
         PreferenciasUsuario.usuarioActual = user.uid;
         await _iniciarEscucha(user.uid);
+        PushNotificationService().sincronizarToken();
       } else {
         await _cancelarEscucha();
       }
