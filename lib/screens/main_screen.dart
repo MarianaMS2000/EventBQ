@@ -31,11 +31,34 @@ class _MainScreenState extends State<MainScreen> {
 
   // Cada vez que sube este número, Explorar abre el modal de filtros.
   int _senalFiltros = 0;
+  String _textoExplorar = '';
+  String? _categoriaExplorar;
+  int _senalExplorar = 0;
 
   /// Inicio > Categorías > "Ver todo": va a Explorar y abre los filtros.
   void _verCategorias() {
     setState(() {
       _senalFiltros++;
+      _indice = 1;
+    });
+  }
+
+  /// Buscar desde la barra de Inicio: transfiere el texto a Explorar.
+  void _buscarDesdeInicio(String texto) {
+    setState(() {
+      _textoExplorar = texto;
+      _categoriaExplorar = null;
+      _senalExplorar++;
+      _indice = 1;
+    });
+  }
+
+  /// Tocar un ícono de categoría en Inicio: filtra Explorar por esa categoría.
+  void _seleccionarCategoriaDesdeInicio(String categoria) {
+    setState(() {
+      _textoExplorar = '';
+      _categoriaExplorar = categoria;
+      _senalExplorar++;
       _indice = 1;
     });
   }
@@ -70,8 +93,15 @@ class _MainScreenState extends State<MainScreen> {
         key: ValueKey('inicio$_versionInicio'),
         onVerCategorias: _verCategorias,
         onVerEventos: () => _seleccionar(1), // Eventos Top > "Ver todo"
+        onBuscar: _buscarDesdeInicio,
+        onSeleccionarCategoria: _seleccionarCategoriaDesdeInicio,
       ),
-      ExplorarScreen(senalAbrirFiltros: _senalFiltros),
+      ExplorarScreen(
+        senalAbrirFiltros: _senalFiltros,
+        textoInicial: _textoExplorar,
+        categoriaInicial: _categoriaExplorar,
+        senalActualizar: _senalExplorar,
+      ),
       const MisEventosScreen(),
       PerfilScreen(key: ValueKey('perfil$_versionPerfil')),
     ];

@@ -5,7 +5,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:googleapis_auth/auth_io.dart' as auth_io;
+import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
+import 'package:http/http.dart' as http;
 import '../config/fcm_credentials.dart';
 
 /// Manejador de notificaciones en segundo plano o cuando la app está cerrada.
@@ -141,20 +142,58 @@ class PushNotificationService {
     }
   }
 
-  static const _scopesFCM = ['https://www.googleapis.com/auth/firebase.messaging'];
-  auth_io.AutoRefreshingAuthClient? _authClient;
+  String? _cachedAccessToken;
+  DateTime? _tokenExpiry;
 
-  Future<auth_io.AutoRefreshingAuthClient?> _obtenerClienteAuth() async {
-    if (kIsWeb) return null; // En web el envío de push es hacia móviles
-    if (_authClient != null) return _authClient!;
+  /// Obtiene o renueva el OAuth2 Access Token de Google para FCM v1
+  /// Es 100% multiplataforma: funciona tanto en Flutter Web (localhost) como en Android e iOS.
+  Future<String?> _obtenerAccessTokenGoogle() async {
+    final now = DateTime.now().toUtc();
+    if (_cachedAccessToken != null &&
+        _tokenExpiry != null &&
+        now.isBefore(_tokenExpiry!)) {
+      return _cachedAccessToken;
+    }
+
     try {
-      final creds = auth_io.ServiceAccountCredentials.fromJson(
-        fcmServiceAccountCredentials,
+      final clientEmail = fcmServiceAccountCredentials['client_email'] as String?;
+      final privateKeyStr = fcmServiceAccountCredentials['private_key'] as String?;
+      if (clientEmail == null || privateKeyStr == null) return null;
+
+      final jwt = JWT(
+        {
+          'iss': clientEmail,
+          'scope': 'https://www.googleapis.com/auth/firebase.messaging',
+          'aud': 'https://oauth2.googleapis.com/token',
+          'exp': now.add(const Duration(minutes: 55)).millisecondsSinceEpoch ~/ 1000,
+          'iat': now.millisecondsSinceEpoch ~/ 1000,
+        },
       );
-      _authClient = await auth_io.clientViaServiceAccount(creds, _scopesFCM);
-      return _authClient!;
+
+      final pemKey = RSAPrivateKey(privateKeyStr);
+      final tokenSigned = jwt.sign(pemKey, algorithm: JWTAlgorithm.RS256);
+
+      final response = await http.post(
+        Uri.parse('https://oauth2.googleapis.com/token'),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+          'assertion': tokenSigned,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        _cachedAccessToken = data['access_token'] as String?;
+        final expiresIn = data['expires_in'] as int? ?? 3600;
+        _tokenExpiry = now.add(Duration(seconds: expiresIn - 120));
+        return _cachedAccessToken;
+      } else {
+        debugPrint('[PUSH ERROR] Error al obtener OAuth2 de Google: ${response.statusCode} - ${response.body}');
+        return null;
+      }
     } catch (e) {
-      debugPrint('[PUSH] Error al autenticar Service Account FCM: $e');
+      debugPrint('[PUSH EXCEPCION] Error al generar JWT para Google: $e');
       return null;
     }
   }
@@ -167,10 +206,13 @@ class PushNotificationService {
     Map<String, String>? datos,
   }) async {
     try {
-      final client = await _obtenerClienteAuth();
-      if (client == null) return;
+      final accessToken = await _obtenerAccessTokenGoogle();
+      if (accessToken == null || accessToken.isEmpty) {
+        debugPrint('[PUSH ERROR] No se pudo obtener Access Token de Google para FCM');
+        return;
+      }
 
-      final projectId = fcmServiceAccountCredentials['project_id'];
+      final projectId = fcmServiceAccountCredentials['project_id'] ?? 'eventobq-3a405';
       final url = Uri.parse(
         'https://fcm.googleapis.com/v1/projects/$projectId/messages:send',
       );
@@ -196,14 +238,17 @@ class PushNotificationService {
         }
       };
 
-      final response = await client.post(
+      final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
         body: jsonEncode(payload),
       );
 
       if (response.statusCode == 200) {
-        debugPrint('[PUSH EXITOSO] Enviado a $fcmToken: "$titulo"');
+        debugPrint('[PUSH EXITOSO] Entregado a FCM para token $fcmToken: "$titulo"');
       } else {
         debugPrint('[PUSH ERROR] FCM HTTP ${response.statusCode}: ${response.body}');
       }

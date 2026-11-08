@@ -12,7 +12,22 @@ class ExplorarScreen extends StatefulWidget {
   /// (lo usa Inicio > Categorías > "Ver todo").
   final int senalAbrirFiltros;
 
-  const ExplorarScreen({super.key, this.senalAbrirFiltros = 0});
+  /// Texto inicial para buscar al transferir desde la barra de Inicio
+  final String? textoInicial;
+
+  /// Categoría seleccionada desde los íconos de Inicio
+  final String? categoriaInicial;
+
+  /// Señal para refrescar la búsqueda desde Inicio
+  final int senalActualizar;
+
+  const ExplorarScreen({
+    super.key,
+    this.senalAbrirFiltros = 0,
+    this.textoInicial,
+    this.categoriaInicial,
+    this.senalActualizar = 0,
+  });
 
   @override
   State<ExplorarScreen> createState() => _ExplorarScreenState();
@@ -20,8 +35,25 @@ class ExplorarScreen extends StatefulWidget {
 
 class _ExplorarScreenState extends State<ExplorarScreen> {
   final _eventoRepo = EventoRepository();
+  late final TextEditingController _busquedaCtrl;
   String _texto = '';
   FiltrosEvento _filtros = FiltrosEvento();
+
+  @override
+  void initState() {
+    super.initState();
+    _texto = widget.textoInicial ?? '';
+    _busquedaCtrl = TextEditingController(text: _texto);
+    if (widget.categoriaInicial != null && widget.categoriaInicial!.isNotEmpty) {
+      _filtros = FiltrosEvento(categorias: [widget.categoriaInicial!]);
+    }
+  }
+
+  @override
+  void dispose() {
+    _busquedaCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(covariant ExplorarScreen oldWidget) {
@@ -30,6 +62,16 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _abrirFiltros();
       });
+    }
+    if (widget.senalActualizar != oldWidget.senalActualizar) {
+      if (widget.textoInicial != null) {
+        _texto = widget.textoInicial!;
+        _busquedaCtrl.text = _texto;
+      }
+      if (widget.categoriaInicial != null && widget.categoriaInicial!.isNotEmpty) {
+        _filtros = FiltrosEvento(categorias: [widget.categoriaInicial!]);
+      }
+      setState(() {});
     }
   }
 
@@ -61,6 +103,7 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
             const EncabezadoUsuario(),
             const SizedBox(height: 16),
             BarraBusqueda(
+              controller: _busquedaCtrl,
               hint: 'Que te interesa',
               conFiltro: true,
               filtrosActivos: _filtros.cantidad,

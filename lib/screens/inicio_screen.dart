@@ -15,7 +15,19 @@ class InicioScreen extends StatefulWidget {
   /// "Ver todo" de Eventos Top: abre Explorar.
   final VoidCallback? onVerEventos;
 
-  const InicioScreen({super.key, this.onVerCategorias, this.onVerEventos});
+  /// Búsqueda desde Inicio: transfiere la búsqueda a Explorar.
+  final ValueChanged<String>? onBuscar;
+
+  /// Tocar un ícono de categoría en Inicio: abre Explorar filtrado por esa categoría.
+  final ValueChanged<String>? onSeleccionarCategoria;
+
+  const InicioScreen({
+    super.key,
+    this.onVerCategorias,
+    this.onVerEventos,
+    this.onBuscar,
+    this.onSeleccionarCategoria,
+  });
 
   @override
   State<InicioScreen> createState() => _InicioScreenState();
@@ -39,7 +51,12 @@ class _InicioScreenState extends State<InicioScreen> {
           children: [
             const EncabezadoUsuario(),
             const SizedBox(height: 16),
-            const BarraBusqueda(hint: 'Un evento de salchipapa?'),
+            BarraBusqueda(
+              hint: 'Un evento de salchipapa?',
+              onTap: () => widget.onBuscar?.call(''),
+              onSubmitted: (t) => widget.onBuscar?.call(t),
+              onChanged: (t) => widget.onBuscar?.call(t),
+            ),
             const SizedBox(height: 20),
             SeccionTitulo(
               titulo: 'Categorías',
@@ -52,7 +69,10 @@ class _InicioScreenState extends State<InicioScreen> {
                 children: categorias
                     .map((c) => Padding(
                           padding: const EdgeInsets.only(right: 18),
-                          child: CategoriaItem(categoria: c),
+                          child: CategoriaItem(
+                            categoria: c,
+                            onTap: () => widget.onSeleccionarCategoria?.call(c.nombre),
+                          ),
                         ))
                     .toList(),
               ),

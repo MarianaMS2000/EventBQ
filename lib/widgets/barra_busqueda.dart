@@ -11,6 +11,10 @@ class BarraBusqueda extends StatelessWidget {
   final int filtrosActivos;
   final ValueChanged<String>? onChanged;
   final VoidCallback? onFiltro;
+  final TextEditingController? controller;
+  final VoidCallback? onTap;
+  final bool readOnly;
+  final ValueChanged<String>? onSubmitted;
 
   const BarraBusqueda({
     super.key,
@@ -19,6 +23,10 @@ class BarraBusqueda extends StatelessWidget {
     this.filtrosActivos = 0,
     this.onChanged,
     this.onFiltro,
+    this.controller,
+    this.onTap,
+    this.readOnly = false,
+    this.onSubmitted,
   });
 
   @override
@@ -37,7 +45,11 @@ class BarraBusqueda extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: TextField(
+              controller: controller,
+              onTap: onTap,
+              readOnly: readOnly,
               onChanged: onChanged,
+              onSubmitted: onSubmitted,
               style: const TextStyle(fontSize: 14, color: Colores.azulOscuro),
               decoration: InputDecoration(
                 hintText: hint,

@@ -313,19 +313,46 @@ class EventoRepository {
     return null;
   }
 
+  static String _normalizarTexto(String str) {
+    return str
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ü', 'u')
+        .trim();
+  }
+
   List<Evento> buscarEventos(String texto, {FiltrosEvento? filtros}) {
-    final t = texto.toLowerCase().trim();
+    final t = _normalizarTexto(texto);
     final hoy = soloFecha(DateTime.now());
     return obtenerEventosExplorar().where((e) {
-      if (t.isNotEmpty &&
-          !e.titulo.toLowerCase().contains(t) &&
-          !e.lugar.toLowerCase().contains(t)) {
-        return false;
+      if (t.isNotEmpty) {
+        final tituloNorm = _normalizarTexto(e.titulo);
+        final lugarNorm = _normalizarTexto(e.lugar);
+        final descNorm = _normalizarTexto(e.descripcion);
+        final catNorm = _normalizarTexto(e.categoria);
+        final incluyeNorm = _normalizarTexto(e.incluye.join(' '));
+
+        final coincide = tituloNorm.contains(t) ||
+            lugarNorm.contains(t) ||
+            descNorm.contains(t) ||
+            catNorm.contains(t) ||
+            incluyeNorm.contains(t);
+        if (!coincide) return false;
       }
       if (filtros != null) {
-        if (filtros.categorias.isNotEmpty &&
-            !filtros.categorias.contains(e.categoria)) {
-          return false;
+        if (filtros.categorias.isNotEmpty) {
+          final catEvento = _normalizarTexto(e.categoria);
+          final coincideCat = filtros.categorias.any((c) {
+            final cNorm = _normalizarTexto(c);
+            return catEvento == cNorm ||
+                (catEvento.startsWith('deport') && cNorm.startsWith('deport')) ||
+                (catEvento.contains(cNorm) || cNorm.contains(catEvento));
+          });
+          if (!coincideCat) return false;
         }
         final f = e.fecha;
         if (filtros.fecha == 'Hoy') {
