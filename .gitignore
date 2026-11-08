@@ -22,3 +22,7 @@ build/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Firebase Service Account Credentials (Secrets)
+*firebase-adminsdk*.json
+lib/config/fcm_credentials.dart

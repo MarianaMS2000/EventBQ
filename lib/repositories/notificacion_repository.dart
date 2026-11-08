@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/notificacion.dart';
 import '../preferences/preferencias_usuario.dart';
+import '../services/push_notification_service.dart';
 import 'cambios.dart';
 import 'evento_repository.dart';
 
@@ -200,6 +201,13 @@ class NotificacionRepository {
           .doc(idUsuario)
           .collection('notificaciones')
           .add(n.toFirestore());
+
+      // Disparar push notification fuera de la app
+      PushNotificationService().enviarPushAUsuario(
+        destinoUid: idUsuario,
+        titulo: titulo,
+        cuerpo: descripcion,
+      );
     } catch (e) {
       debugPrint('Error al crear notificación en Firestore: $e');
     }

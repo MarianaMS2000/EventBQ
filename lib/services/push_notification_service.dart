@@ -5,6 +5,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:googleapis_auth/auth_io.dart' as auth_io;
+import '../config/fcm_credentials.dart';
 
 /// Manejador de notificaciones en segundo plano o cuando la app está cerrada.
 /// Debe ser una función de nivel superior con la anotación @pragma('vm:entry-point').
@@ -139,8 +141,79 @@ class PushNotificationService {
     }
   }
 
+  static const _scopesFCM = ['https://www.googleapis.com/auth/firebase.messaging'];
+  auth_io.AutoRefreshingAuthClient? _authClient;
+
+  Future<auth_io.AutoRefreshingAuthClient?> _obtenerClienteAuth() async {
+    if (kIsWeb) return null; // En web el envío de push es hacia móviles
+    if (_authClient != null) return _authClient!;
+    try {
+      final creds = auth_io.ServiceAccountCredentials.fromJson(
+        fcmServiceAccountCredentials,
+      );
+      _authClient = await auth_io.clientViaServiceAccount(creds, _scopesFCM);
+      return _authClient!;
+    } catch (e) {
+      debugPrint('[PUSH] Error al autenticar Service Account FCM: $e');
+      return null;
+    }
+  }
+
+  /// Despacha un mensaje a la API v1 de FCM usando la cuenta de servicio oficial
+  Future<void> enviarPushDirecto({
+    required String fcmToken,
+    required String titulo,
+    required String cuerpo,
+    Map<String, String>? datos,
+  }) async {
+    try {
+      final client = await _obtenerClienteAuth();
+      if (client == null) return;
+
+      final projectId = fcmServiceAccountCredentials['project_id'];
+      final url = Uri.parse(
+        'https://fcm.googleapis.com/v1/projects/$projectId/messages:send',
+      );
+
+      final payload = {
+        'message': {
+          'token': fcmToken,
+          'notification': {
+            'title': titulo,
+            'body': cuerpo,
+          },
+          'android': {
+            'priority': 'high',
+            'notification': {
+              'channel_id': _canalAndroid.id,
+              'sound': 'default',
+              'default_sound': true,
+              'default_vibrate_timings': true,
+              'notification_priority': 'PRIORITY_MAX',
+            },
+          },
+          if (datos != null && datos.isNotEmpty) 'data': datos,
+        }
+      };
+
+      final response = await client.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('[PUSH EXITOSO] Enviado a $fcmToken: "$titulo"');
+      } else {
+        debugPrint('[PUSH ERROR] FCM HTTP ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('[PUSH EXCEPCION] Error al enviar a FCM: $e');
+    }
+  }
+
   /// Envía una notificación push a un usuario destinatario utilizando su fcmToken registrado.
-  /// Funciona en conjunto con el despachador de Cloudflare Worker / microservicio gratuito.
+  /// Funciona en segundo plano y con la app completamente cerrada en el Plan Spark ($0).
   Future<void> enviarPushAUsuario({
     required String destinoUid,
     required String titulo,
@@ -163,9 +236,13 @@ class PushNotificationService {
         return;
       }
 
-      // 2. Despachar a FCM (soporta microservicio serverless gratuito o puente directo)
-      // Si tienes configurado un webhook/worker gratuito, se envía la orden de despacho
-      debugPrint('[PUSH] Enviando push a $destinoUid (Token: $fcmToken): "$titulo"');
+      // 2. Despachar a la API v1 de FCM
+      await enviarPushDirecto(
+        fcmToken: fcmToken,
+        titulo: titulo,
+        cuerpo: cuerpo,
+        datos: datos,
+      );
     } catch (e) {
       debugPrint('[PUSH] Aviso al despachar push: $e');
     }

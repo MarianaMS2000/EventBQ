@@ -25,6 +25,7 @@ dependencies:
   printing: ^5.15.1
   firebase_messaging: ^17.0.1
   flutter_local_notifications: ^18.0.1
+  googleapis_auth: ^2.3.7
 
 dev_dependencies:
   flutter_test:

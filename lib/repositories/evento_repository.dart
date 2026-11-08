@@ -13,6 +13,7 @@ import '../utils/compresion_imagen.dart';
 import '../utils/formato.dart';
 import '../utils/manejo_errores.dart';
 import '../widgets/imagen_asset.dart';
+import '../services/push_notification_service.dart';
 import 'cambios.dart';
 import 'notificacion_repository.dart';
 import 'usuario_repository.dart';
@@ -617,6 +618,21 @@ class EventoRepository {
       _misInscripciones.insert(0, inscLocal);
       _mapaInscripciones?[evento.id] = inscLocal;
       notificarCambios();
+
+      // Despachar Push Notification fuera de la app
+      PushNotificationService().enviarPushAUsuario(
+        destinoUid: uid,
+        titulo: '¡Inscripción confirmada!',
+        cuerpo: 'Tu entrada para "${evento.titulo}" está lista.',
+      );
+      if (evento.creadorId.isNotEmpty && evento.creadorId != uid) {
+        PushNotificationService().enviarPushAUsuario(
+          destinoUid: evento.creadorId,
+          titulo: 'Nueva inscripción',
+          cuerpo: '${yo.nombre} reservó una entrada para "${evento.titulo}".',
+        );
+      }
+
       return null;
     } catch (e) {
       debugPrint('Error en agregarEntrada: $e');
@@ -878,6 +894,15 @@ class EventoRepository {
           });
         }
         await batch.commit();
+
+        // Despachar Push Notification a cada comprador fuera de la app
+        for (final asistenteUid in lote) {
+          PushNotificationService().enviarPushAUsuario(
+            destinoUid: asistenteUid,
+            titulo: titulo,
+            cuerpo: descripcion,
+          );
+        }
       }
     } catch (e) {
       debugPrint('Error al notificar compradores: $e');
