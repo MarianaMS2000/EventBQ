@@ -56,7 +56,14 @@ String traducirError(dynamic error) {
   if (error is FirebaseException) {
     switch (error.code) {
       case 'permission-denied':
-        return 'No tienes permisos para realizar esta acción o tu sesión expiró.';
+        bool sinSesion = false;
+        try {
+          sinSesion = FirebaseAuth.instance.currentUser == null;
+        } catch (_) {}
+        if (sinSesion) {
+          return 'Debes iniciar sesión con tu cuenta para realizar esta acción.';
+        }
+        return 'No tienes permisos para realizar esta acción.';
       case 'unavailable':
         return 'El servicio no está disponible en este momento. Revisa tu conexión a internet.';
       case 'deadline-exceeded':
@@ -92,7 +99,14 @@ String traducirError(dynamic error) {
 
   if (textoOriginal.contains('permission-denied') ||
       textoOriginal.contains('insufficient permissions')) {
-    return 'No tienes permisos para realizar esta acción o tu sesión expiró.';
+    bool sinSesion = false;
+    try {
+      sinSesion = FirebaseAuth.instance.currentUser == null;
+    } catch (_) {}
+    if (sinSesion) {
+      return 'Debes iniciar sesión con tu cuenta para realizar esta acción.';
+    }
+    return 'No tienes permisos para realizar esta acción.';
   }
 
   if (textoOriginal.contains('SocketException') ||
