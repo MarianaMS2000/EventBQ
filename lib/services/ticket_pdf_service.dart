@@ -35,6 +35,10 @@ class TicketPdfService {
     final uid = (insc != null && insc.uid.isNotEmpty) ? insc.uid : usuario.uid;
     final payloadQr = '${evento.id}|$uid|$codigo';
 
+    final hoy = soloFecha(DateTime.now());
+    final fechaEv = evento.fecha != null ? soloFecha(evento.fecha!) : null;
+    final esDiaDelEvento = fechaEv == null || !hoy.isBefore(fechaEv);
+
     // 2. Cargar fuentes TTF para soporte completo de tildes y eñes
     final fontRegularData = await rootBundle.load('assets/fonts/Roboto-Regular.ttf');
     final fontBoldData = await rootBundle.load('assets/fonts/Roboto-Bold.ttf');
@@ -224,39 +228,84 @@ class TicketPdfService {
                             ),
                           ),
                           pw.SizedBox(height: 12),
-                          pw.Container(
-                            padding: const pw.EdgeInsets.all(12),
-                            decoration: pw.BoxDecoration(
-                              color: PdfColors.white,
-                              borderRadius: pw.BorderRadius.circular(12),
-                              border: pw.Border.all(color: grisBorde, width: 1.5),
+                          if (esDiaDelEvento) ...[
+                            pw.Container(
+                              padding: const pw.EdgeInsets.all(12),
+                              decoration: pw.BoxDecoration(
+                                color: PdfColors.white,
+                                borderRadius: pw.BorderRadius.circular(12),
+                                border: pw.Border.all(color: grisBorde, width: 1.5),
+                              ),
+                              child: pw.BarcodeWidget(
+                                barcode: pw.Barcode.qrCode(),
+                                data: payloadQr,
+                                width: 140,
+                                height: 140,
+                              ),
                             ),
-                            child: pw.BarcodeWidget(
-                              barcode: pw.Barcode.qrCode(),
-                              data: payloadQr,
-                              width: 140,
-                              height: 140,
+                            pw.SizedBox(height: 10),
+                            pw.Text(
+                              codigo,
+                              style: const pw.TextStyle(
+                                color: azulOscuro,
+                                fontSize: 12,
+                                fontWeight: pw.FontWeight.bold,
+                                letterSpacing: 2.0,
+                              ),
                             ),
-                          ),
-                          pw.SizedBox(height: 10),
-                          pw.Text(
-                            codigo,
-                            style: const pw.TextStyle(
-                              color: azulOscuro,
-                              fontSize: 12,
-                              fontWeight: pw.FontWeight.bold,
-                              letterSpacing: 2.0,
+                            pw.SizedBox(height: 4),
+                            pw.Text(
+                              'Presenta este código al ingresar para su escaneo o validación manual.',
+                              textAlign: pw.TextAlign.center,
+                              style: const pw.TextStyle(
+                                color: grisTexto,
+                                fontSize: 10,
+                              ),
                             ),
-                          ),
-                          pw.SizedBox(height: 4),
-                          pw.Text(
-                            'Presenta este código al ingresar para su escaneo o validación manual.',
-                            textAlign: pw.TextAlign.center,
-                            style: const pw.TextStyle(
-                              color: grisTexto,
-                              fontSize: 10,
+                          ] else ...[
+                            pw.Container(
+                              width: 220,
+                              height: 120,
+                              padding: const pw.EdgeInsets.all(16),
+                              decoration: pw.BoxDecoration(
+                                color: PdfColors.grey100,
+                                borderRadius: pw.BorderRadius.circular(12),
+                                border: pw.Border.all(color: grisBorde, width: 1.5),
+                              ),
+                              child: pw.Column(
+                                mainAxisAlignment: pw.MainAxisAlignment.center,
+                                children: [
+                                  pw.Text(
+                                    'CÓDIGO QR PROTEGIDO',
+                                    style: pw.TextStyle(
+                                      color: azulOscuro,
+                                      fontSize: 11,
+                                      fontWeight: pw.FontWeight.bold,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                  pw.SizedBox(height: 6),
+                                  pw.Text(
+                                    'Se activará en tu app EventBQ el día del evento (${evento.fechaCorta}).',
+                                    textAlign: pw.TextAlign.center,
+                                    style: const pw.TextStyle(
+                                      color: grisTexto,
+                                      fontSize: 9,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
+                            pw.SizedBox(height: 10),
+                            pw.Text(
+                              'CÓDIGO: •••••••••••• (Protegido)',
+                              style: pw.TextStyle(
+                                color: grisTexto,
+                                fontSize: 10,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

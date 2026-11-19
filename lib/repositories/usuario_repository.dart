@@ -218,6 +218,30 @@ class UsuarioRepository {
     notificarCambios();
   }
 
+  /// Guarda la cuenta de cobro del organizador (Nequi, Daviplata o Bancaria)
+  Future<void> actualizarDatosCobro({
+    required String tipo,
+    required String numero,
+    required String titular,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) {
+      try {
+        await _firestore.collection('users').doc(uid).update({
+          'cuentaCobroTipo': tipo,
+          'cuentaCobroNumero': numero,
+          'cuentaCobroTitular': titular,
+        });
+        _usuarioActual?.cuentaCobroTipo = tipo;
+        _usuarioActual?.cuentaCobroNumero = numero;
+        _usuarioActual?.cuentaCobroTitular = titular;
+      } catch (e) {
+        debugPrint('Aviso al actualizar datos de cobro: $e');
+      }
+    }
+    notificarCambios();
+  }
+
   /// Busca un usuario por su UID. Si no está en caché, lo consulta en segundo plano.
   Usuario? obtenerPorId(String id) {
     if (id.isEmpty) return null;

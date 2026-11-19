@@ -43,6 +43,7 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
   final _precioCtrl = TextEditingController();
 
   String? _categoria;
+  late final List<String> _categoriasDisponibles = List<String>.from(datosCategoriasEvento);
   DateTime _fecha = soloFecha(DateTime.now().add(const Duration(days: 7)));
   TimeOfDay _horaInicio = const TimeOfDay(hour: 14, minute: 0);
   TimeOfDay _horaCierre = const TimeOfDay(hour: 19, minute: 0);
@@ -451,6 +452,132 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
     );
   }
 
+  Widget _chipBotonNuevaCategoria() {
+    return GestureDetector(
+      onTap: _agregarNuevaCategoria,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colores.azulOscuro, width: 1.6),
+          color: Colors.white,
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.add_circle_outline, size: 18, color: Colores.azulOscuro),
+            SizedBox(width: 6),
+            Text(
+              'Agregar otra...',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: Colores.azulOscuro,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _agregarNuevaCategoria() async {
+    final ctrl = TextEditingController();
+    final nueva = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colores.fondo,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.category_rounded, color: Colores.azulOscuro),
+            SizedBox(width: 10),
+            Text('Nueva Categoría',
+                style: TextStyle(
+                    color: Colores.azulOscuro,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Escribe el nombre de la nueva categoría para tu evento:',
+              style: TextStyle(fontSize: 13, color: Colores.grisTexto),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              textCapitalization: TextCapitalization.sentences,
+              style: const TextStyle(fontSize: 15, color: Colores.azulOscuro),
+              decoration: InputDecoration(
+                hintText: 'Ej: Stand Up, Cine, Mascotas...',
+                hintStyle: const TextStyle(color: Color(0xFF8A8FA3)),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colores.azulOscuro),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFD5D8E0)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Colores.azulOscuro, width: 1.8),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar',
+                style: TextStyle(color: Colores.grisTexto)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final t = ctrl.text.trim();
+              if (t.length >= 2) Navigator.pop(ctx, t);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colores.azulOscuro,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Agregar'),
+          ),
+        ],
+      ),
+    );
+
+    if (nueva != null && nueva.trim().isNotEmpty) {
+      final formateada =
+          '${nueva.trim()[0].toUpperCase()}${nueva.trim().substring(1)}';
+      setState(() {
+        if (!_categoriasDisponibles.contains(formateada)) {
+          _categoriasDisponibles.add(formateada);
+          if (!datosCategoriasEvento.contains(formateada)) {
+            datosCategoriasEvento.add(formateada);
+          }
+          if (!datosCategoriasFiltro.contains(formateada)) {
+            datosCategoriasFiltro.add(formateada);
+          }
+        }
+        _categoria = formateada;
+      });
+    }
+  }
+
   Widget _botonAforo(IconData icono, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -559,7 +686,10 @@ class _CrearEventoScreenState extends State<CrearEventoScreen> {
               Wrap(
                 spacing: 10,
                 runSpacing: 12,
-                children: datosCategoriasEvento.map(_chipCategoria).toList(),
+                children: [
+                  ..._categoriasDisponibles.map(_chipCategoria),
+                  _chipBotonNuevaCategoria(),
+                ],
               ),
               const SizedBox(height: 26),
 

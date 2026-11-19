@@ -30,24 +30,46 @@ class EncabezadoUsuario extends StatelessWidget {
     final usuario = this.usuario ?? UsuarioRepository().obtenerUsuarioActual();
     return Row(
       children: [
-        ClipOval(
-          child: SizedBox(
-            width: 44,
-            height: 44,
-            child: usuario.foto.isNotEmpty
-                ? ImagenAsset(
-                    ruta: usuario.foto,
-                    iconoPlaceholder: Icons.person,
-                  )
-                : Container(
-                    color: const Color(0xFFE8EEF8),
-                    child: const Icon(
-                      Icons.person,
-                      color: Colores.azulOscuro,
-                      size: 26,
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            ClipOval(
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: usuario.foto.isNotEmpty
+                    ? ImagenAsset(
+                        ruta: usuario.foto,
+                        iconoPlaceholder: Icons.person,
+                      )
+                    : Container(
+                        color: const Color(0xFFE8EEF8),
+                        child: const Icon(
+                          Icons.person,
+                          color: Colores.azulOscuro,
+                          size: 26,
+                        ),
+                      ),
+              ),
+            ),
+            if (usuario.planPro)
+              Positioned(
+                top: -2,
+                right: -2,
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF38E0FD), Color(0xFF1B3B82)],
                     ),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
                   ),
-          ),
+                  child: const Icon(Icons.diamond_rounded,
+                      size: 10, color: Colors.white),
+                ),
+              ),
+          ],
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -58,13 +80,26 @@ class EncabezadoUsuario extends StatelessWidget {
                 'Hola!',
                 style: TextStyle(color: Colores.grisTexto, fontSize: 13),
               ),
-              Text(
-                usuario.nombre,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      usuario.nombre,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (usuario.planPro) ...[
+                    const SizedBox(width: 5),
+                    const Icon(Icons.diamond_rounded,
+                        size: 16, color: Color(0xFF0072FF)),
+                  ],
+                ],
               ),
             ],
           ),

@@ -237,6 +237,8 @@ class Inscripcion {
   String estado; // "Activa", "Anulada", "Asistio"
   final String codigo; // código criptográfico único de 24 caracteres para validación
   final DateTime? checkInEn;
+  final String? metodoPago; // "Nequi", "Daviplata", "Efectivo (Efecty)", "Tarjeta Débito/Crédito"
+  final String? referenciaPago; // Ej: "NEQ-849201"
 
   Inscripcion({
     this.id = '',
@@ -248,6 +250,8 @@ class Inscripcion {
     this.estado = 'Activa',
     required this.codigo,
     this.checkInEn,
+    this.metodoPago,
+    this.referenciaPago,
   });
 
   bool get esActiva => estado == 'Activa';
@@ -263,6 +267,8 @@ class Inscripcion {
         'estado': estado,
         'codigo': codigo,
         'checkInEn': checkInEn != null ? Timestamp.fromDate(checkInEn!) : null,
+        'metodoPago': metodoPago,
+        'referenciaPago': referenciaPago,
       };
 
   factory Inscripcion.fromFirestore(
@@ -294,6 +300,8 @@ class Inscripcion {
       estado: j['estado'] as String? ?? 'Activa',
       codigo: j['codigo'] as String? ?? '',
       checkInEn: (j['checkInEn'] as Timestamp?)?.toDate(),
+      metodoPago: j['metodoPago'] as String?,
+      referenciaPago: j['referenciaPago'] as String?,
     );
   }
 }

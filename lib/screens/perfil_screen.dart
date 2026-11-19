@@ -8,6 +8,7 @@ import '../theme/colores.dart';
 import '../widgets/aviso_exito.dart';
 import '../widgets/imagen_asset.dart';
 import '../widgets/tarjeta_evento_horizontal.dart';
+import '../widgets/tarjeta_cuenta_cobro.dart';
 import '../utils/manejo_errores.dart';
 
 /// Perfil del usuario. Tiene dos modos:
@@ -131,7 +132,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                 child: Column(
                   children: [
                     const SizedBox(height: 12),
-                    _avatar(u.foto),
+                    _avatar(u.foto, esPremium: u.planPro),
                     const SizedBox(height: 12),
                     Text(
                       u.nombre,
@@ -141,6 +142,43 @@ class _PerfilScreenState extends State<PerfilScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    if (u.planPro) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 4),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF38E0FD), Color(0xFF6C3CE9)],
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 6,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.diamond_rounded,
+                                color: Colors.white, size: 16),
+                            SizedBox(width: 6),
+                            Text(
+                              'Miembro Premium',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 14),
                     Row(
                       children: [
@@ -174,6 +212,11 @@ class _PerfilScreenState extends State<PerfilScreen> {
                       _tarjetaInformacion(
                           u.correo, u.telefono, u.rol, u.miembroDesde),
                       const SizedBox(height: 16),
+                      if (u.rol == 'Organizador' ||
+                          _eventoRepo.obtenerEventosCreados().isNotEmpty) ...[
+                        const TarjetaCuentaCobro(),
+                        const SizedBox(height: 16),
+                      ],
                       // Botón de Cerrar Sesión (Ubicado debajo de Información Personal)
                       OutlinedButton(
                         onPressed: () async {
@@ -251,7 +294,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
     );
   }
 
-  Widget _avatar(String ruta) {
+  Widget _avatar(String ruta, {bool esPremium = false}) {
     return SizedBox(
       width: 104,
       height: 104,
@@ -294,6 +337,38 @@ class _PerfilScreenState extends State<PerfilScreen> {
               ),
             ),
           ),
+          if (esPremium)
+            Positioned(
+              top: -6,
+              left: -6,
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF38E0FD), Color(0xFF1B3B82)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2.5),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0xFF38E0FD),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.diamond_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

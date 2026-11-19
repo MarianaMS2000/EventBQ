@@ -13,6 +13,7 @@ import '../widgets/imagen_asset.dart';
 import '../widgets/mapa_evento.dart';
 import '../widgets/pantalla_con_barra.dart';
 import '../utils/manejo_errores.dart';
+import 'pago_evento_screen.dart';
 
 /// Recibe el Evento como argumento:
 /// Navigator.pushNamed(context, '/detalle-evento', arguments: evento);
@@ -75,12 +76,25 @@ class _DetalleEventoScreenState extends State<DetalleEventoScreen> {
       return;
     }
 
+    // Si el evento es PAGO, abrimos la pasarela de pago (Nequi, Daviplata, Efecty o Tarjeta)
+    // El usuario debe pagar obligatoriamente; si cancela o no completa el pago, NO se entrega ticket.
+    if (!evento.esGratis) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PagoEventoScreen(evento: evento),
+        ),
+      );
+      return;
+    }
+
+    // Si el evento es GRATUITO, confirma asistencia y reserva directamente
     final confirmado = await mostrarDialogoConfirmarAsistencia(context, evento);
     if (!confirmado || !mounted) return;
 
     setState(() => _reservando = true);
     try {
-      final error = await _eventoRepo.agregarEntrada(evento);
+      final error = await _eventoRepo.agregarEntrada(evento, metodoPago: 'Gratuito');
       if (!mounted) return;
       if (error != null) {
         mostrarDialogoError(context, error: error);

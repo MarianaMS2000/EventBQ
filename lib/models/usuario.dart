@@ -14,6 +14,9 @@ class Usuario {
   bool planPro;
   DateTime? creadoEn;
   String? fcmToken;
+  String? cuentaCobroTipo; // "Nequi", "Daviplata", "Bancolombia"
+  String? cuentaCobroNumero;
+  String? cuentaCobroTitular;
 
   Usuario({
     this.uid = '',
@@ -29,6 +32,9 @@ class Usuario {
     this.planPro = false,
     this.creadoEn,
     this.fcmToken,
+    this.cuentaCobroTipo,
+    this.cuentaCobroNumero,
+    this.cuentaCobroTitular,
   });
 
   /// Identificador único: con Firebase es el UID de Auth.
@@ -47,6 +53,9 @@ class Usuario {
         'onboardingCompletado': onboardingCompletado,
         'planPro': planPro,
         if (fcmToken != null) 'fcmToken': fcmToken,
+        if (cuentaCobroTipo != null) 'cuentaCobroTipo': cuentaCobroTipo,
+        if (cuentaCobroNumero != null) 'cuentaCobroNumero': cuentaCobroNumero,
+        if (cuentaCobroTitular != null) 'cuentaCobroTitular': cuentaCobroTitular,
         'creadoEn': creadoEn != null
             ? Timestamp.fromDate(creadoEn!)
             : FieldValue.serverTimestamp(),
@@ -64,6 +73,9 @@ class Usuario {
         'onboardingCompletado': onboardingCompletado,
         'planPro': planPro,
         if (fcmToken != null) 'fcmToken': fcmToken,
+        'cuentaCobroTipo': cuentaCobroTipo,
+        'cuentaCobroNumero': cuentaCobroNumero,
+        'cuentaCobroTitular': cuentaCobroTitular,
         'creadoEn': creadoEn?.toIso8601String(),
       };
 
@@ -86,6 +98,9 @@ class Usuario {
         onboardingCompletado: j['onboardingCompletado'] as bool? ?? false,
         planPro: j['planPro'] as bool? ?? false,
         fcmToken: j['fcmToken'] as String?,
+        cuentaCobroTipo: j['cuentaCobroTipo'] as String?,
+        cuentaCobroNumero: j['cuentaCobroNumero'] as String?,
+        cuentaCobroTitular: j['cuentaCobroTitular'] as String?,
         creadoEn: j['creadoEn'] is Timestamp
             ? (j['creadoEn'] as Timestamp).toDate()
             : (j['creadoEn'] is String

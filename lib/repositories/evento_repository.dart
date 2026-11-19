@@ -505,7 +505,11 @@ class EventoRepository {
   /// que no supere el límite anti-abuso de 10 entradas y que cuposDisponibles > 0.
   /// Crea un nuevo documento events/{id}/inscripciones/{autoId} con su propio código
   /// y resta 1 a cuposDisponibles.
-  Future<String?> agregarEntrada(Evento evento) async {
+  Future<String?> agregarEntrada(
+    Evento evento, {
+    String? metodoPago,
+    String? referenciaPago,
+  }) async {
     _asegurarDatosLocales();
     final uid = _auth.currentUser?.uid.isNotEmpty == true
         ? _auth.currentUser!.uid
@@ -577,6 +581,8 @@ class EventoRepository {
           'estado': 'Activa',
           'codigo': codigo,
           'checkInEn': null,
+          'metodoPago': metodoPago ?? (evento.esGratis ? 'Gratuito' : 'Pago confirmado'),
+          'referenciaPago': referenciaPago,
         });
 
         // 2. Descontar cupo en el evento
@@ -641,6 +647,8 @@ class EventoRepository {
         creadaEn: DateTime.now(),
         precioPagado: evento.precio,
         codigo: codigo,
+        metodoPago: metodoPago ?? (evento.esGratis ? 'Gratuito' : 'Pago confirmado'),
+        referenciaPago: referenciaPago,
       );
       _misInscripciones.insert(0, inscLocal);
       _mapaInscripciones?[evento.id] = inscLocal;
@@ -1331,6 +1339,21 @@ class EventoRepository {
             exito: false,
             mensaje: 'No eres el organizador de este evento',
           );
+        }
+
+        // Validación: las entradas solo se pueden validar el día del evento en adelante
+        final fechaIso = evData['fechaIso'] as String? ?? '';
+        final dtEvento = fechaIso.isNotEmpty ? DateTime.tryParse(fechaIso) : null;
+        if (dtEvento != null) {
+          final hoy = soloFecha(DateTime.now());
+          final fechaEv = soloFecha(dtEvento);
+          if (hoy.isBefore(fechaEv)) {
+            return ResultadoValidacion(
+              exito: false,
+              mensaje:
+                  'Este evento se realizará el ${formatoFecha(dtEvento)}. Las entradas solo son válidas el día del evento.',
+            );
+          }
         }
 
         final inscSnap = await tx.get(inscRef!);

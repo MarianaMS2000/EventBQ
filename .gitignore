@@ -22,6 +22,8 @@ build/
 .vscode/
 .DS_Store
 Thumbs.db
+*.apk
+EventBQ.apk
 
 # Firebase Service Account Credentials (Secrets)
 *firebase-adminsdk*.json

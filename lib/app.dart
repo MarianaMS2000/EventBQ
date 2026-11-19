@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'models/evento.dart';
 import 'screens/bienvenida_screen.dart';
 import 'screens/calificar_screen.dart';
 import 'screens/detalle_evento_screen.dart';
@@ -12,6 +13,7 @@ import 'screens/lector_qr_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/panel_asistente_screen.dart';
 import 'screens/panel_organizador_screen.dart';
+import 'screens/pago_evento_screen.dart';
 import 'screens/perfil_organizador_screen.dart';
 import 'screens/planes_screen.dart';
 import 'screens/registro_exitoso_screen.dart';
@@ -63,6 +65,11 @@ class EventBQApp extends StatelessWidget {
         '/detalle-evento-organizador': (context) =>
             const DetalleEventoOrganizadorScreen(),
         '/lector-qr': (context) => const LectorQrScreen(),
+        '/pago-evento': (context) {
+          final e = ModalRoute.of(context)?.settings.arguments as Evento?;
+          if (e == null) return const DetalleEventoScreen();
+          return PagoEventoScreen(evento: e);
+        },
       },
     );
   }

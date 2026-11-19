@@ -13,6 +13,7 @@ import '../widgets/mapa_evento.dart';
 import '../widgets/pantalla_con_barra.dart';
 import '../widgets/tarjeta_estadistica.dart';
 import '../widgets/tarjeta_evento_horizontal.dart';
+import '../widgets/tarjeta_cuenta_cobro.dart';
 
 /// "Detalles del evento" (vista del organizador).
 /// Se abre desde el Panel de Organizador con el botón verde "Ver":
@@ -343,6 +344,10 @@ class _DetalleEventoOrganizadorScreenState
                   ),
                 ),
               ),
+              const SizedBox(height: 18),
+
+              // ----- Cuenta para recibir pagos del evento -----
+              const TarjetaCuentaCobro(),
               const SizedBox(height: 18),
 
               // ----- Gráfico -----

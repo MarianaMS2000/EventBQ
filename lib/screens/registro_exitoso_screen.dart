@@ -73,6 +73,36 @@ class _RegistroExitosoScreenState extends State<RegistroExitosoScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                if (insc != null &&
+                    insc.metodoPago != null &&
+                    insc.metodoPago != 'Gratuito') ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white70),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.verified_rounded,
+                            color: Color(0xFF6BFFB8), size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Pago verificado: ${insc.metodoPago} ${insc.referenciaPago != null ? "(${insc.referenciaPago})" : ""}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 TicketDeEvento(evento: e, inscripcion: insc),
                 const SizedBox(height: 14),

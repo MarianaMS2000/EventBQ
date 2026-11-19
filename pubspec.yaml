@@ -27,6 +27,7 @@ dependencies:
   flutter_local_notifications: ^18.0.1
   googleapis_auth: ^2.3.7
   dart_jsonwebtoken: ^3.4.1
+  get: ^4.6.6
 
 dev_dependencies:
   flutter_test:

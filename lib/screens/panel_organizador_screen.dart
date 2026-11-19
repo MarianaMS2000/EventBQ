@@ -7,6 +7,7 @@ import '../widgets/encabezado_usuario.dart';
 import '../widgets/pantalla_con_barra.dart';
 import '../widgets/tarjeta_estadistica.dart';
 import '../widgets/tarjeta_evento_horizontal.dart';
+import '../widgets/tarjeta_cuenta_cobro.dart';
 
 /// "Panel de Organizador": resumen + eventos creados.
 /// Se abre desde Mis eventos > Mis Eventos Creados.
@@ -105,6 +106,11 @@ class PanelOrganizadorScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 26),
+
+              // ----- Cuenta para recibir ingresos de las entradas -----
+              const TarjetaCuentaCobro(),
+
+              const SizedBox(height: 24),
 
               // ----- Mis eventos creados -----
               const Text(

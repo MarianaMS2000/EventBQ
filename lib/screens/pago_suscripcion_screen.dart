@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../repositories/evento_repository.dart';
+import '../repositories/usuario_repository.dart';
 import 'flor_encabezado.dart';
 import 'suscripcion_activa_screen.dart';
 
@@ -55,6 +56,9 @@ class _PagoSuscripcionScreenState extends State<PagoSuscripcionScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     // Pago correcto -> pantalla de suscripción activa
+    // Activa el plan Pro en el perfil del usuario (diamante y beneficios Pro)
+    await UsuarioRepository().activarPlanPro();
+
     // Si pagó el plan Organizador Pro, ya puede publicar sin límite.
     if (widget.nombrePlan == 'Organizador Pro') {
       await EventoRepository().activarPlanOrganizador();
